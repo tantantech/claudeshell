@@ -65,7 +65,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Config file support and npm distribution packaging
-- [ ] 03-02-PLAN.md — Cross-platform validation and CI test script
+- [x] 03-02-PLAN.md — Cross-platform validation and CI test script
 
 ## Progress
 

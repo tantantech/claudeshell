@@ -42,7 +42,7 @@
 ### Platform
 
 - [x] **PLAT-01**: Works on macOS (primary platform)
-- [ ] **PLAT-02**: Works on Linux
+- [x] **PLAT-02**: Works on Linux
 - [x] **PLAT-03**: Installable via npm (`npm install -g claudeshell`)
 
 ## v2 Requirements
@@ -105,7 +105,7 @@
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 1 | Complete |
 | PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 3 | Pending |
+| PLAT-02 | Phase 3 | Complete |
 | PLAT-03 | Phase 3 | Complete |
 
 **Coverage:**
