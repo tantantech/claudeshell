@@ -1,5 +1,5 @@
 import pc from 'picocolors'
-import { resolveApiKey } from './config.js'
+import { loadConfig, resolveApiKey } from './config.js'
 import type { LastError } from './types.js'
 
 export interface AICallbacks {
@@ -104,7 +104,8 @@ export async function executeAI(
 ): Promise<void> {
   const { cwd, lastError, abortController, callbacks } = options
 
-  const apiKey = resolveApiKey()
+  const config = loadConfig()
+  const apiKey = resolveApiKey(config)
   if (!apiKey) {
     callbacks.onError(
       'Set ANTHROPIC_API_KEY to use AI commands. Example: export ANTHROPIC_API_KEY=sk-ant-...'

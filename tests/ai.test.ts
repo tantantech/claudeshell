@@ -4,6 +4,7 @@ import type { LastError } from '../src/types.js'
 
 // Mock the config module
 vi.mock('../src/config.js', () => ({
+  loadConfig: vi.fn(() => ({})),
   resolveApiKey: vi.fn()
 }))
 

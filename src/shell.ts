@@ -8,16 +8,18 @@ import { executeCommand } from './passthrough.js'
 import { executeAI } from './ai.js'
 import { createRenderer } from './renderer.js'
 import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './history.js'
+import { loadConfig } from './config.js'
 import type { ShellState } from './types.js'
 
 export async function runShell(): Promise<void> {
+  const config = loadConfig()
   const historyLines = loadHistory(HISTORY_PATH)
 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     history: [...historyLines] as string[],
-    historySize: 10_000,
+    historySize: config.history_size ?? 10_000,
     terminal: true,
   })
 
