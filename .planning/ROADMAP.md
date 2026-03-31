@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md — Project scaffolding, types, prompt generation, input classifier
 - [x] 01-02-PLAN.md — Shell builtins (cd, export) and history persistence
-- [ ] 01-03-PLAN.md — Command passthrough, REPL loop, CLI entry point
+- [x] 01-03-PLAN.md — Command passthrough, REPL loop, CLI entry point
 - [ ] 01-04-PLAN.md — Integration tests and human verification
 
 ### Phase 2: AI Integration

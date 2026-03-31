@@ -8,10 +8,10 @@
 ### Shell Foundation
 
 - [x] **SHELL-01**: User can launch ClaudeShell as an interactive REPL with a visible prompt showing current directory
-- [ ] **SHELL-02**: User can type standard shell commands (ls, git, npm, etc.) and they execute via system shell
+- [x] **SHELL-02**: User can type standard shell commands (ls, git, npm, etc.) and they execute via system shell
 - [x] **SHELL-03**: User can use `cd` to change working directory and the prompt updates accordingly
-- [ ] **SHELL-04**: User can use pipes, redirects, and shell syntax in standard commands (delegated to bash)
-- [ ] **SHELL-05**: User can press Ctrl+C to cancel a running command without exiting the shell
+- [x] **SHELL-04**: User can use pipes, redirects, and shell syntax in standard commands (delegated to bash)
+- [x] **SHELL-05**: User can press Ctrl+C to cancel a running command without exiting the shell
 - [x] **SHELL-06**: User can press Ctrl+D or type `exit` to quit the shell
 - [x] **SHELL-07**: User can navigate command history with up/down arrows
 - [x] **SHELL-08**: Command history persists across shell sessions
@@ -83,10 +83,10 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SHELL-01 | Phase 1 | Complete |
-| SHELL-02 | Phase 1 | Pending |
+| SHELL-02 | Phase 1 | Complete |
 | SHELL-03 | Phase 1 | Complete |
-| SHELL-04 | Phase 1 | Pending |
-| SHELL-05 | Phase 1 | Pending |
+| SHELL-04 | Phase 1 | Complete |
+| SHELL-05 | Phase 1 | Complete |
 | SHELL-06 | Phase 1 | Complete |
 | SHELL-07 | Phase 1 | Complete |
 | SHELL-08 | Phase 1 | Complete |
