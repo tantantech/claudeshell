@@ -20,12 +20,12 @@
 ### AI Integration
 
 - [x] **AI-01**: User can type `a <prompt>` to send a request to Claude via Claude Agent SDK
-- [ ] **AI-02**: Claude's response streams back to the terminal in real-time (not waiting for full response)
-- [ ] **AI-03**: User can press Ctrl+C during an AI response to cancel the streaming query
-- [ ] **AI-04**: Claude has access to read and write files in the user's filesystem via SDK tools
-- [ ] **AI-05**: Claude can execute shell commands as part of its response via SDK tools
-- [ ] **AI-06**: User sees when Claude is using tools (reading files, running commands) in real-time
-- [ ] **AI-07**: AI responses are rendered with markdown formatting and syntax highlighting
+- [x] **AI-02**: Claude's response streams back to the terminal in real-time (not waiting for full response)
+- [x] **AI-03**: User can press Ctrl+C during an AI response to cancel the streaming query
+- [x] **AI-04**: Claude has access to read and write files in the user's filesystem via SDK tools
+- [x] **AI-05**: Claude can execute shell commands as part of its response via SDK tools
+- [x] **AI-06**: User sees when Claude is using tools (reading files, running commands) in real-time
+- [x] **AI-07**: AI responses are rendered with markdown formatting and syntax highlighting
 
 ### Configuration
 
@@ -92,12 +92,12 @@
 | SHELL-08 | Phase 1 | Complete |
 | SHELL-09 | Phase 1 | Complete |
 | AI-01 | Phase 2 | Complete |
-| AI-02 | Phase 2 | Pending |
-| AI-03 | Phase 2 | Pending |
-| AI-04 | Phase 2 | Pending |
-| AI-05 | Phase 2 | Pending |
-| AI-06 | Phase 2 | Pending |
-| AI-07 | Phase 2 | Pending |
+| AI-02 | Phase 2 | Complete |
+| AI-03 | Phase 2 | Complete |
+| AI-04 | Phase 2 | Complete |
+| AI-05 | Phase 2 | Complete |
+| AI-06 | Phase 2 | Complete |
+| AI-07 | Phase 2 | Complete |
 | CONF-01 | Phase 2 | Complete |
 | CONF-02 | Phase 2 | Complete |
 | CONF-03 | Phase 3 | Pending |
