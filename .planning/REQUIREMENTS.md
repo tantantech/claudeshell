@@ -7,7 +7,7 @@
 
 ### Shell Foundation
 
-- [ ] **SHELL-01**: User can launch ClaudeShell as an interactive REPL with a visible prompt showing current directory
+- [x] **SHELL-01**: User can launch ClaudeShell as an interactive REPL with a visible prompt showing current directory
 - [ ] **SHELL-02**: User can type standard shell commands (ls, git, npm, etc.) and they execute via system shell
 - [ ] **SHELL-03**: User can use `cd` to change working directory and the prompt updates accordingly
 - [ ] **SHELL-04**: User can use pipes, redirects, and shell syntax in standard commands (delegated to bash)
@@ -15,7 +15,7 @@
 - [ ] **SHELL-06**: User can press Ctrl+D or type `exit` to quit the shell
 - [ ] **SHELL-07**: User can navigate command history with up/down arrows
 - [ ] **SHELL-08**: Command history persists across shell sessions
-- [ ] **SHELL-09**: Environment variables from user's shell profile are inherited
+- [x] **SHELL-09**: Environment variables from user's shell profile are inherited
 
 ### AI Integration
 
@@ -41,7 +41,7 @@
 
 ### Platform
 
-- [ ] **PLAT-01**: Works on macOS (primary platform)
+- [x] **PLAT-01**: Works on macOS (primary platform)
 - [ ] **PLAT-02**: Works on Linux
 - [ ] **PLAT-03**: Installable via npm (`npm install -g claudeshell`)
 
@@ -82,7 +82,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SHELL-01 | Phase 1 | Pending |
+| SHELL-01 | Phase 1 | Complete |
 | SHELL-02 | Phase 1 | Pending |
 | SHELL-03 | Phase 1 | Pending |
 | SHELL-04 | Phase 1 | Pending |
@@ -90,7 +90,7 @@
 | SHELL-06 | Phase 1 | Pending |
 | SHELL-07 | Phase 1 | Pending |
 | SHELL-08 | Phase 1 | Pending |
-| SHELL-09 | Phase 1 | Pending |
+| SHELL-09 | Phase 1 | Complete |
 | AI-01 | Phase 2 | Pending |
 | AI-02 | Phase 2 | Pending |
 | AI-03 | Phase 2 | Pending |
@@ -104,7 +104,7 @@
 | ERR-01 | Phase 2 | Pending |
 | ERR-02 | Phase 2 | Pending |
 | ERR-03 | Phase 1 | Pending |
-| PLAT-01 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |
 | PLAT-03 | Phase 3 | Pending |
 
