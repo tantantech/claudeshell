@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-31T08:48:08.562Z"
+status: executing
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-31T09:05:46.278Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Running AI-assisted commands feels as natural and fast as running normal shell commands
-**Current focus:** Phase 01 — shell-foundation
+**Current focus:** Phase 02 — ai-integration
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 02 (ai-integration) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 4min | 2 tasks | 5 files |
 | Phase 01 P03 | 3min | 2 tasks | 4 files |
 | Phase 01 P04 | 3min | 2 tasks | 1 files |
+| Phase 02-ai-integration P01 | 3min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 01]: spawn bash with inherited stdio for transparent terminal I/O
 - [Phase 01]: Catch ERR_USE_AFTER_CLOSE for Ctrl+D readline edge case
 - [Phase 01]: Spawn-based integration testing pattern for CLI verification
+- [Phase 02-ai-integration]: Replace ai_placeholder with ai in InputAction union for cleaner naming
+- [Phase 02-ai-integration]: Stderr tee pattern: pipe to buffer AND process.stderr for real-time display plus capture
+- [Phase 02-ai-integration]: Config resolution: env var ANTHROPIC_API_KEY first, then ~/.claudeshell/config JSON
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T08:48:08.560Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-ai-integration/02-CONTEXT.md
+Last session: 2026-03-31T09:05:46.276Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None

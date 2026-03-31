@@ -19,7 +19,7 @@
 
 ### AI Integration
 
-- [ ] **AI-01**: User can type `a <prompt>` to send a request to Claude via Claude Agent SDK
+- [x] **AI-01**: User can type `a <prompt>` to send a request to Claude via Claude Agent SDK
 - [ ] **AI-02**: Claude's response streams back to the terminal in real-time (not waiting for full response)
 - [ ] **AI-03**: User can press Ctrl+C during an AI response to cancel the streaming query
 - [ ] **AI-04**: Claude has access to read and write files in the user's filesystem via SDK tools
@@ -29,14 +29,14 @@
 
 ### Configuration
 
-- [ ] **CONF-01**: User can configure API key via ANTHROPIC_API_KEY environment variable
-- [ ] **CONF-02**: Shell shows a helpful error message if API key is missing when `a` command is used
+- [x] **CONF-01**: User can configure API key via ANTHROPIC_API_KEY environment variable
+- [x] **CONF-02**: Shell shows a helpful error message if API key is missing when `a` command is used
 - [ ] **CONF-03**: User can configure settings via a `~/.claudeshell/config` file
 
 ### Error Handling
 
-- [ ] **ERR-01**: When a command fails, user can ask AI to explain the error
-- [ ] **ERR-02**: SDK errors (rate limits, auth failures, network) show clear user-friendly messages
+- [x] **ERR-01**: When a command fails, user can ask AI to explain the error
+- [x] **ERR-02**: SDK errors (rate limits, auth failures, network) show clear user-friendly messages
 - [x] **ERR-03**: Shell never crashes from malformed input or unexpected errors
 
 ### Platform
@@ -91,18 +91,18 @@
 | SHELL-07 | Phase 1 | Complete |
 | SHELL-08 | Phase 1 | Complete |
 | SHELL-09 | Phase 1 | Complete |
-| AI-01 | Phase 2 | Pending |
+| AI-01 | Phase 2 | Complete |
 | AI-02 | Phase 2 | Pending |
 | AI-03 | Phase 2 | Pending |
 | AI-04 | Phase 2 | Pending |
 | AI-05 | Phase 2 | Pending |
 | AI-06 | Phase 2 | Pending |
 | AI-07 | Phase 2 | Pending |
-| CONF-01 | Phase 2 | Pending |
-| CONF-02 | Phase 2 | Pending |
+| CONF-01 | Phase 2 | Complete |
+| CONF-02 | Phase 2 | Complete |
 | CONF-03 | Phase 3 | Pending |
-| ERR-01 | Phase 2 | Pending |
-| ERR-02 | Phase 2 | Pending |
+| ERR-01 | Phase 2 | Complete |
+| ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 1 | Complete |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |

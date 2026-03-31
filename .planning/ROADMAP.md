@@ -49,7 +49,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Type contracts, config module, classifier update, passthrough stderr capture
+- [x] 02-01-PLAN.md — Type contracts, config module, classifier update, passthrough stderr capture
 - [ ] 02-02-PLAN.md — AI module (SDK wrapper) and streaming renderer
 - [ ] 02-03-PLAN.md — Shell REPL integration and end-to-end verification
 
