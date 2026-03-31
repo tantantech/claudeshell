@@ -31,7 +31,7 @@
 
 - [x] **CONF-01**: User can configure API key via ANTHROPIC_API_KEY environment variable
 - [x] **CONF-02**: Shell shows a helpful error message if API key is missing when `a` command is used
-- [ ] **CONF-03**: User can configure settings via a `~/.claudeshell/config` file
+- [x] **CONF-03**: User can configure settings via a `~/.claudeshell/config` file
 
 ### Error Handling
 
@@ -43,7 +43,7 @@
 
 - [x] **PLAT-01**: Works on macOS (primary platform)
 - [ ] **PLAT-02**: Works on Linux
-- [ ] **PLAT-03**: Installable via npm (`npm install -g claudeshell`)
+- [x] **PLAT-03**: Installable via npm (`npm install -g claudeshell`)
 
 ## v2 Requirements
 
@@ -100,13 +100,13 @@
 | AI-07 | Phase 2 | Complete |
 | CONF-01 | Phase 2 | Complete |
 | CONF-02 | Phase 2 | Complete |
-| CONF-03 | Phase 3 | Pending |
+| CONF-03 | Phase 3 | Complete |
 | ERR-01 | Phase 2 | Complete |
 | ERR-02 | Phase 2 | Complete |
 | ERR-03 | Phase 1 | Complete |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |
-| PLAT-03 | Phase 3 | Pending |
+| PLAT-03 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 25 total
