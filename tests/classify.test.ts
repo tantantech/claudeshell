@@ -58,13 +58,21 @@ describe('classifyInput', () => {
     })
   })
 
-  describe('ai_placeholder', () => {
-    it('classifies "a explain this" as ai_placeholder', () => {
-      expect(classifyInput('a explain this')).toEqual({ type: 'ai_placeholder', prompt: 'explain this' })
+  describe('ai commands', () => {
+    it('classifies "a explain this" as ai', () => {
+      expect(classifyInput('a explain this')).toEqual({ type: 'ai', prompt: 'explain this' })
     })
 
-    it('classifies bare "a" as ai_placeholder with empty prompt', () => {
-      expect(classifyInput('a')).toEqual({ type: 'ai_placeholder', prompt: '' })
+    it('classifies bare "a" as ai with empty prompt', () => {
+      expect(classifyInput('a')).toEqual({ type: 'ai', prompt: '' })
+    })
+
+    it('classifies "a hello world" as ai with prompt', () => {
+      expect(classifyInput('a hello world')).toEqual({ type: 'ai', prompt: 'hello world' })
+    })
+
+    it('does not classify "apt update" as ai', () => {
+      expect(classifyInput('apt update')).toEqual({ type: 'passthrough', command: 'apt update' })
     })
   })
 
