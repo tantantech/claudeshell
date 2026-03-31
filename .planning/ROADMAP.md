@@ -46,7 +46,12 @@ Plans:
   3. User can see when Claude is reading files or running commands as part of its response, and those tool actions execute correctly
   4. User sees a clear error message when the API key is missing, when rate-limited, or when the network is down
   5. After a failed command, user can ask AI to explain the error and gets a useful response
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Type contracts, config module, classifier update, passthrough stderr capture
+- [ ] 02-02-PLAN.md — AI module (SDK wrapper) and streaming renderer
+- [ ] 02-03-PLAN.md — Shell REPL integration and end-to-end verification
 
 ### Phase 3: Distribution & Platform
 **Goal**: Users can install ClaudeShell via npm and use it reliably on macOS and Linux
@@ -65,6 +70,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Shell Foundation | 0/4 | Planning complete | - |
-| 2. AI Integration | 0/? | Not started | - |
+| 1. Shell Foundation | 4/4 | Complete | - |
+| 2. AI Integration | 0/3 | Planning complete | - |
 | 3. Distribution & Platform | 0/? | Not started | - |
