@@ -9,12 +9,12 @@
 
 - [x] **SHELL-01**: User can launch ClaudeShell as an interactive REPL with a visible prompt showing current directory
 - [ ] **SHELL-02**: User can type standard shell commands (ls, git, npm, etc.) and they execute via system shell
-- [ ] **SHELL-03**: User can use `cd` to change working directory and the prompt updates accordingly
+- [x] **SHELL-03**: User can use `cd` to change working directory and the prompt updates accordingly
 - [ ] **SHELL-04**: User can use pipes, redirects, and shell syntax in standard commands (delegated to bash)
 - [ ] **SHELL-05**: User can press Ctrl+C to cancel a running command without exiting the shell
-- [ ] **SHELL-06**: User can press Ctrl+D or type `exit` to quit the shell
-- [ ] **SHELL-07**: User can navigate command history with up/down arrows
-- [ ] **SHELL-08**: Command history persists across shell sessions
+- [x] **SHELL-06**: User can press Ctrl+D or type `exit` to quit the shell
+- [x] **SHELL-07**: User can navigate command history with up/down arrows
+- [x] **SHELL-08**: Command history persists across shell sessions
 - [x] **SHELL-09**: Environment variables from user's shell profile are inherited
 
 ### AI Integration
@@ -37,7 +37,7 @@
 
 - [ ] **ERR-01**: When a command fails, user can ask AI to explain the error
 - [ ] **ERR-02**: SDK errors (rate limits, auth failures, network) show clear user-friendly messages
-- [ ] **ERR-03**: Shell never crashes from malformed input or unexpected errors
+- [x] **ERR-03**: Shell never crashes from malformed input or unexpected errors
 
 ### Platform
 
@@ -84,12 +84,12 @@
 |-------------|-------|--------|
 | SHELL-01 | Phase 1 | Complete |
 | SHELL-02 | Phase 1 | Pending |
-| SHELL-03 | Phase 1 | Pending |
+| SHELL-03 | Phase 1 | Complete |
 | SHELL-04 | Phase 1 | Pending |
 | SHELL-05 | Phase 1 | Pending |
-| SHELL-06 | Phase 1 | Pending |
-| SHELL-07 | Phase 1 | Pending |
-| SHELL-08 | Phase 1 | Pending |
+| SHELL-06 | Phase 1 | Complete |
+| SHELL-07 | Phase 1 | Complete |
+| SHELL-08 | Phase 1 | Complete |
 | SHELL-09 | Phase 1 | Complete |
 | AI-01 | Phase 2 | Pending |
 | AI-02 | Phase 2 | Pending |
@@ -103,7 +103,7 @@
 | CONF-03 | Phase 3 | Pending |
 | ERR-01 | Phase 2 | Pending |
 | ERR-02 | Phase 2 | Pending |
-| ERR-03 | Phase 1 | Pending |
+| ERR-03 | Phase 1 | Complete |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |
 | PLAT-03 | Phase 3 | Pending |
