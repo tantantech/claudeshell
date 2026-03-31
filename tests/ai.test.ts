@@ -164,6 +164,9 @@ describe('executeAI', () => {
       exitCode: 1
     }
 
+    // Clear previous calls before this test
+    mockQuery.mockClear()
+
     const { executeAI } = await import('../src/ai.js')
     await executeAI('explain', {
       cwd: '/tmp',
@@ -172,10 +175,10 @@ describe('executeAI', () => {
       callbacks
     })
 
-    const queryCall = mockQuery.mock.calls[0]?.[0]
-    expect(queryCall.prompt).toContain('npm run build')
-    expect(queryCall.prompt).toContain('TypeError')
-    expect(queryCall.prompt).toContain('Exit code: 1')
+    const lastCall = mockQuery.mock.calls[mockQuery.mock.calls.length - 1]?.[0]
+    expect(lastCall.prompt).toContain('npm run build')
+    expect(lastCall.prompt).toContain('TypeError')
+    expect(lastCall.prompt).toContain('Exit code: 1')
   })
 
   it('does not call onError when aborted', async () => {
