@@ -1,133 +1,72 @@
-<!-- GSD:project-start source:PROJECT.md -->
-## Project
+# CLAUDE.md
 
-**ClaudeShell**
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-An AI-native shell that wraps Claude Code SDK to provide intelligent command-line assistance directly in the terminal. Users type an `a` command (e.g., `a find all large files`) and Claude processes the request in the background — no separate Claude Code UI needed. It behaves like a standard shell (zsh/bash replacement) but with AI superpowers baked in.
+## What This Is
 
-**Core Value:** Running AI-assisted commands feels as natural and fast as running normal shell commands — zero context switching, zero UI overhead.
+ClaudeShell — an AI-native terminal shell. Users type regular commands normally and prefix with `a` to invoke Claude (e.g., `a find all large files`). Built on the Claude Agent SDK for full tool-use capabilities (file read/write, command execution) with streaming responses.
 
-### Constraints
+## Commands
 
-- **Tech Stack**: TypeScript/Node.js — Claude Code SDK is TypeScript-based
-- **SDK**: Must use Claude Code SDK (not raw Anthropic API) for full tool-use capabilities
-- **Platform**: macOS primary, Linux secondary — no Windows for v1
-- **Shell**: Must be usable as a login shell or launched from existing shell
-- **Performance**: AI commands should start streaming within 2-3 seconds
-- **Authentication**: Must support existing Claude/Anthropic API key setup
-<!-- GSD:project-end -->
+```bash
+npm run dev          # Run shell in development (tsx, no build step)
+npm run build        # Bundle to dist/cli.js via tsdown
+npm test             # Run all tests (vitest)
+npm run test:watch   # Watch mode
 
-<!-- GSD:stack-start source:research/STACK.md -->
-## Technology Stack
+npx vitest run tests/prompt.test.ts          # Single test file
+npx vitest run -t "executes echo command"    # Single test by name
+npx tsc --noEmit                             # Type check without emitting
 
-## Recommended Stack
-### Core AI Engine
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `@anthropic-ai/claude-agent-sdk` | ^0.2.x | AI agent loop, tool use, streaming | Official SDK that powers Claude Code itself. Provides `query()` async generator for streaming, built-in tools (Read, Edit, Bash, Glob, Grep), session management, and permission modes. This IS the product's core -- everything else is plumbing. | HIGH |
-### Runtime & Language
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Node.js | 22 LTS | Runtime | Required by Claude Agent SDK. v22 is current LTS with native ESM, top-level await, and stable `node:readline` APIs. | HIGH |
-| TypeScript | ^5.7 | Type safety | Claude Agent SDK is TypeScript-native. Strict mode catches bugs at compile time. The SDK ships its own type definitions. | HIGH |
-### Terminal I/O & REPL
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:readline/promises` | (built-in) | Line input, history, tab completion | Built into Node.js, zero dependencies. Provides `createInterface()` with prompt, history, and completer support. For a shell REPL, this is the right abstraction -- lightweight, no framework overhead. | HIGH |
-| `node:child_process` | (built-in) | Execute pass-through shell commands | `spawn()` with `{ stdio: 'inherit' }` for transparent command execution. Handles pipes, signals, exit codes natively. | HIGH |
-### Terminal Output & Formatting
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `picocolors` | ^1.1 | ANSI color output | 10x faster than chalk, 14x smaller (7KB vs 101KB), zero dependencies. For a shell that renders every line of AI output, load time and per-call performance matter. | HIGH |
-| `marked` + `marked-terminal` | ^15 / ^7 | Markdown rendering in terminal | Claude responses contain markdown. `marked-terminal` renders it with proper formatting (bold, code blocks, lists) directly in the terminal. Battle-tested combo. | MEDIUM |
-### Build & Development
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `tsdown` | ^0.14 | TypeScript bundler | Spiritual successor to tsup (which is no longer maintained). Powered by Rolldown (Rust-based). Zero-config, produces ESM + CJS, generates .d.ts. For a CLI tool, single-file output with bundled deps is ideal. | MEDIUM |
-| `tsx` | ^4.x | Dev-time TypeScript execution | Run .ts files directly during development without a build step. Used by the Claude Agent SDK quickstart itself. Fast (esbuild-based). | HIGH |
-| `vitest` | ^3.x | Testing | Native TypeScript support, ESM-first, fast watch mode. The standard for new TS projects in 2025-2026. Jest requires more config for ESM/TS. | HIGH |
-### CLI Packaging & Distribution
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| npm `bin` field | (package.json) | CLI entry point | Standard npm mechanism. `"bin": { "claudeshell": "./dist/cli.js" }` makes the shell available as a command after `npm install -g`. | HIGH |
-| `#!/usr/bin/env node` | - | Shebang for CLI | Standard Node.js CLI convention. Required for the `bin` field to work. | HIGH |
-### Configuration & Persistence
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:fs/promises` | (built-in) | Config file I/O | Read/write JSON config files. No library needed for simple config. | HIGH |
-| XDG Base Directory | (convention) | Config location | `~/.config/claudeshell/config.json` on Linux, `~/Library/Application Support/claudeshell/` on macOS. Use `env.XDG_CONFIG_HOME` with fallback. | HIGH |
-| `dotenv` | ^16.x | Environment variable loading | Load `.env` files for API keys. Claude Agent SDK expects `ANTHROPIC_API_KEY` in env. | HIGH |
-| `node:fs` (append) | (built-in) | Command history | Append-only history file at `~/.claudeshell_history`. readline has built-in history support -- just persist it to disk. | HIGH |
-### Process & Signal Management
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:process` | (built-in) | Signal handling, exit codes | Handle SIGINT (Ctrl+C) gracefully during AI queries, SIGTSTP (Ctrl+Z) for backgrounding. Critical for shell UX. | HIGH |
-## Supporting Libraries (use when needed)
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `zod` | ^3.23 | Input validation | Validating config files, CLI arguments. Already a dependency of Claude Agent SDK. | 
-| `ora` | ^8.x | Spinner/loading indicator | Show "thinking..." while waiting for first AI token. Small, focused library. |
-| `which` | ^5.x | Command existence checking | Verify commands exist before pass-through execution. Optional -- can use `child_process` directly. |
-| `glob` | ^11.x | File glob patterns | Only if implementing custom tab completion for file paths beyond readline defaults. |
-## Alternatives Considered
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| AI SDK | Claude Agent SDK | Raw Anthropic API (`@anthropic-ai/sdk`) | Agent SDK provides the full tool-use loop, file access, command execution. Raw API would require reimplementing all of that. |
-| REPL | `node:readline/promises` | Ink (React for CLI) | Ink is a UI framework; we need a REPL. Wrong abstraction level. |
-| REPL | `node:readline/promises` | `node:repl` module | `node:repl` is designed for JavaScript REPLs with eval. We need a command shell, not a JS evaluator. |
-| Terminal | Direct terminal (run inside existing) | node-pty | node-pty emulates terminals. We run inside one. Adds native compilation burden. |
-| Colors | picocolors | chalk | Slower load, larger bundle. No features we need that picocolors lacks. |
-| Colors | picocolors | ansis | ansis is excellent but picocolors has wider adoption and is sufficient for our needs. |
-| Bundler | tsdown | tsup | tsup is unmaintained. tsdown is the official successor. |
-| Bundler | tsdown | Rollup | More config, less TypeScript-focused. tsdown wraps Rolldown with better defaults. |
-| Testing | vitest | jest | Jest needs extra config for ESM + TypeScript. Vitest works out of the box. |
-| Shell scripting | `node:child_process` | Google zx | zx is for shell scripts, not for building shells. We need fine-grained control over process spawning. |
-| Config | XDG + JSON | cosmiconfig | Over-engineered for a single config file. We know exactly where config lives. |
-## Installation
-# Core dependencies
-# Dev dependencies  
-## Project Structure (recommended)
-## Sources
-- [Claude Agent SDK - npm](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) - Official package, v0.2.87
-- [Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) - Full API docs
-- [Agent SDK Quickstart](https://platform.claude.com/docs/en/agent-sdk/quickstart) - Setup guide
-- [Agent SDK Streaming](https://platform.claude.com/docs/en/agent-sdk/streaming-output) - Streaming patterns
-- [picocolors](https://github.com/alexeyraspopov/picocolors) - Terminal colors benchmarks
-- [tsdown](https://tsdown.dev/guide/) - Bundler documentation
-- [Vitest](https://vitest.dev/) - Testing framework
-- [Node.js readline](https://nodejs.org/api/repl.html) - Built-in REPL module docs
-<!-- GSD:stack-end -->
+./scripts/ci-test.sh                         # Full CI validation (build + test + artifact checks)
+```
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
-## Conventions
-
-Conventions not yet established. Will populate as patterns emerge during development.
-<!-- GSD:conventions-end -->
-
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
-<!-- GSD:architecture-end -->
+```
+cli.ts → shell.ts → classify.ts → route to:
+                       ├── builtins.ts   (cd, export, exit, clear)
+                       ├── passthrough.ts (spawn bash -c for regular commands)
+                       └── ai.ts         (Claude Agent SDK for "a" prefix)
+                            └── renderer.ts (markdown + tool visibility)
+```
 
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
+**Entry point:** `src/cli.ts` — handles `--version`, calls `runShell()`
 
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+**REPL loop:** `src/shell.ts` — manages `ShellState` (immutable), readline, signal handling, history load/save
 
-Use these entry points:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
+**Input classification:** `src/classify.ts` — returns discriminated union: `builtin | passthrough | ai | empty`
 
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
+**AI integration:** `src/ai.ts` — lazy-loads `@anthropic-ai/claude-agent-sdk`, streams via `query()` async generator, `AbortController` for Ctrl+C cancellation, error classification (auth/rate-limit/network/billing)
 
+**Rendering:** `src/renderer.ts` — TTY mode buffers text then renders markdown via `marked` + `marked-terminal` on finish; non-TTY mode passes raw text through. Tool use displayed as dim status lines on stderr.
 
+**Config:** `src/config.ts` — loads `~/.claudeshell/config.json` (optional), resolves API key from env var then config file
 
-<!-- GSD:profile-start -->
-## Developer Profile
+**Prompt:** `src/prompt.ts` — p10k-style powerline prompt with orange/white segments, git branch detection
 
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->
+## Key Patterns
+
+- **Immutable state**: `ShellState` updated via spread: `state = { ...state, field: value }`. Never mutate.
+- **Shell passthrough**: All non-builtin commands go to `spawn('bash', ['-c', cmd])`. Never parse shell syntax in JS.
+- **Builtins**: Only `cd`, `export`, `exit`, `quit`, `clear` are intercepted — they must run in-process.
+- **Lazy SDK loading**: `@anthropic-ai/claude-agent-sdk` imported on first `a` command via dynamic `import()` to keep startup fast.
+- **Signal handling**: Ctrl+C during AI streaming aborts via `AbortController`; during command execution, SIGINT forwards to child; at idle prompt, clears line.
+- **Error context**: Failed commands store `LastError` (command, stderr, exitCode) in state for `a explain` shortcut.
+
+## Tech Stack
+
+- **Runtime**: Node.js 22+ (ESM, `"type": "module"`)
+- **Language**: TypeScript 6 with strict mode
+- **AI**: `@anthropic-ai/claude-agent-sdk` (not raw Anthropic API)
+- **Build**: tsdown (Rolldown-based, produces single `dist/cli.js` with shebang)
+- **Test**: Vitest
+- **Colors**: picocolors (prompt uses raw ANSI 256-color for powerline segments)
+- **Markdown**: marked + marked-terminal
+
+## npm Distribution
+
+- `"bin": { "claudeshell": "dist/cli.js" }` — global install via `npm install -g claudeshell`
+- `"files": ["dist"]` — only built output ships
+- `prepublishOnly` runs build + test
+- Shebang `#!/usr/bin/env node` preserved in built output
