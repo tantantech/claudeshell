@@ -30,11 +30,11 @@ function runShell(
 }
 
 describe('Shell Integration', { timeout: 15_000 }, () => {
-  // SHELL-01: Shell launches and shows prompt containing 'claudeshell' and '>'
+  // SHELL-01: Shell launches and shows prompt containing 'claudeshell' and '❯'
   it('shows prompt with claudeshell and cwd', async () => {
     const { stdout } = await runShell('exit\n')
     expect(stdout).toContain('claudeshell')
-    expect(stdout).toContain('>')
+    expect(stdout).toContain('❯')
   })
 
   // SHELL-02: Shell executes commands and shows output

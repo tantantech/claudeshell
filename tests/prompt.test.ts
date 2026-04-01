@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { buildPrompt, abbreviatePath } from '../src/prompt.js'
+import { describe, it, expect, vi } from 'vitest'
+import { buildPrompt, abbreviatePath, getGitBranch } from '../src/prompt.js'
 
 describe('abbreviatePath', () => {
   it('returns ~ when cwd equals homedir', () => {
@@ -19,15 +19,22 @@ describe('abbreviatePath', () => {
   })
 })
 
+describe('getGitBranch', () => {
+  it('returns a string (branch name or empty)', () => {
+    const result = getGitBranch()
+    expect(typeof result).toBe('string')
+  })
+})
+
 describe('buildPrompt', () => {
   it('contains claudeshell label', () => {
     const result = buildPrompt('/Users/tal', '/Users/tal')
     expect(result).toContain('claudeshell')
   })
 
-  it('contains > character', () => {
+  it('contains orange arrow character ❯', () => {
     const result = buildPrompt('/Users/tal', '/Users/tal')
-    expect(result).toContain('>')
+    expect(result).toContain('❯')
   })
 
   it('contains tilde for home directory', () => {
@@ -53,5 +60,15 @@ describe('buildPrompt', () => {
   it('ends with a trailing space', () => {
     const result = buildPrompt('/tmp', '/Users/tal')
     expect(result.endsWith(' ')).toBe(true)
+  })
+
+  it('contains powerline separator character', () => {
+    const result = buildPrompt('/tmp', '/Users/tal')
+    expect(result).toContain('\uE0B0')
+  })
+
+  it('contains ANSI color escape sequences', () => {
+    const result = buildPrompt('/tmp', '/Users/tal')
+    expect(result).toContain('\x1b[')
   })
 })
