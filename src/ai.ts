@@ -1,8 +1,10 @@
+import * as readline from 'node:readline'
 import pc from 'picocolors'
 import { loadConfig, resolveApiKey } from './config.js'
 import { buildResumeOptions, extractSessionId } from './session.js'
 import { extractUsage } from './cost.js'
-import type { LastError, AIResult, UsageInfo } from './types.js'
+import type { LastError, AIResult, UsageInfo, ClaudeShellPermission } from './types.js'
+import type { ProjectContext } from './context.js'
 
 export interface AICallbacks {
   readonly onText: (text: string) => void
@@ -107,13 +109,76 @@ export function parseFixResponse(text: string): string | undefined {
   return stripped
 }
 
-function buildSystemPrompt(cwd: string): string {
-  return [
+export function toSDKPermissionMode(mode: ClaudeShellPermission): string {
+  switch (mode) {
+    case 'auto': return 'acceptEdits'
+    case 'ask': return 'default'
+    case 'deny': return 'plan'
+  }
+}
+
+export function buildSystemPrompt(cwd: string, projectContext?: ProjectContext | null): string {
+  const lines = [
     'You are ClaudeShell, an AI assistant running inside a terminal shell.',
     `Current directory: ${cwd}`,
     `OS: ${process.platform}`,
-    `Node: ${process.version}`
-  ].join('\n')
+    `Node: ${process.version}`,
+  ]
+  if (projectContext) {
+    lines.push(`Project: ${projectContext.summary}`)
+  }
+  return lines.join('\n')
+}
+
+function formatToolAction(toolName: string, input: Record<string, unknown>): string {
+  const file = typeof input.file_path === 'string'
+    ? input.file_path
+    : typeof input.path === 'string'
+      ? input.path
+      : undefined
+
+  if (toolName === 'Bash' && typeof input.command === 'string') {
+    return `run ${input.command}`
+  }
+  if (file) {
+    const verb = toolName.toLowerCase()
+    return `${verb} ${file}`
+  }
+  return `use ${toolName}`
+}
+
+export function createCanUseTool(): (
+  toolName: string,
+  input: Record<string, unknown>,
+  options: { signal: AbortSignal; title?: string; displayName?: string; description?: string; toolUseID: string }
+) => Promise<{ behavior: 'allow'; updatedInput?: Record<string, unknown> } | { behavior: 'deny'; message: string }> {
+  return async (toolName, input, options) => {
+    const action = options.title ?? `Claude wants to ${formatToolAction(toolName, input)}`
+    const prompt = `${action}. Allow? (y/n) `
+
+    const askOnce = (): Promise<string> => {
+      return new Promise((resolve) => {
+        process.stderr.write(prompt)
+        const rl = readline.createInterface({ input: process.stdin, terminal: false })
+        rl.once('line', (line) => {
+          rl.close()
+          resolve(line.trim().toLowerCase())
+        })
+      })
+    }
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const answer = await askOnce()
+      if (answer === 'y' || answer === 'yes') {
+        return { behavior: 'allow' as const }
+      }
+      if (answer === 'n' || answer === 'no') {
+        return { behavior: 'deny' as const, message: 'User denied permission' }
+      }
+      // Re-prompt on invalid input
+    }
+  }
 }
 
 function isAbortError(error: unknown): boolean {
@@ -131,6 +196,8 @@ export async function executeAI(
     readonly callbacks: AICallbacks
     readonly sessionId?: string
     readonly model?: string
+    readonly permissionMode?: ClaudeShellPermission
+    readonly projectContext?: ProjectContext | null
   }
 ): Promise<AIResult> {
   const { cwd, lastError, abortController, callbacks } = options
@@ -159,7 +226,13 @@ export async function executeAI(
       ? buildExplainPrompt(lastError)
       : prompt
 
-    const systemPrompt = buildSystemPrompt(cwd)
+    const requestedMode = options.permissionMode ?? 'auto'
+    // Non-TTY cannot prompt interactively -- force ask to auto (Pitfall 5)
+    const effectiveMode: ClaudeShellPermission = (requestedMode === 'ask' && !process.stdin.isTTY)
+      ? 'auto'
+      : requestedMode
+
+    const systemPrompt = buildSystemPrompt(cwd, options.projectContext)
 
     const stream = sdk.query({
       prompt: fullPrompt,
@@ -167,11 +240,12 @@ export async function executeAI(
         abortController,
         includePartialMessages: true,
         allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
-        permissionMode: 'acceptEdits' as const,
+        permissionMode: toSDKPermissionMode(effectiveMode) as 'acceptEdits' | 'default' | 'plan',
         cwd,
         systemPrompt,
         ...buildResumeOptions(options.sessionId),
         ...(options.model ? { model: options.model } : {}),
+        ...(effectiveMode === 'ask' ? { canUseTool: createCanUseTool() } : {}),
       }
     })
 
