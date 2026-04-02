@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 
-export const HISTORY_PATH = path.join(os.homedir(), '.claudeshell_history')
+export const HISTORY_PATH = path.join(os.homedir(), '.nesh_history')
 export const MAX_HISTORY = 10_000
 
 export function loadHistory(filePath: string = HISTORY_PATH): readonly string[] {

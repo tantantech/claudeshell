@@ -30,7 +30,7 @@ export interface CostAccumulator {
   readonly messageCount: number
 }
 
-export type ClaudeShellPermission = 'auto' | 'ask' | 'deny'
+export type NeshPermission = 'auto' | 'ask' | 'deny'
 
 export interface AIResult {
   readonly sessionId: string | undefined
@@ -48,5 +48,5 @@ export interface ShellState {
   readonly sessionCost: CostAccumulator
   readonly lastSuggestedFix: string | undefined
   readonly projectContext: import('./context.js').ProjectContext | null
-  readonly permissionMode: ClaudeShellPermission
+  readonly permissionMode: NeshPermission
 }

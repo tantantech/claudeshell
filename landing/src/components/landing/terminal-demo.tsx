@@ -244,7 +244,7 @@ const Arrow = ({ from, to }: { from: string; to: string }) => (
 const PromptSegment = () => (
   <span className="flex items-center shrink-0 select-none h-[20px]">
     <span className="bg-[#00d639] text-[#050a08] px-2.5 text-[12px] font-bold h-full flex items-center">
-      claudeshell
+      nesh
     </span>
     <Arrow from="#00d639" to="#3a4a5a" />
     <span className="bg-[#3a4a5a] text-[#8fa4b8] px-2 text-[12px] h-full flex items-center">
@@ -402,7 +402,7 @@ export function TerminalDemo() {
             <div className="h-3 w-3 rounded-full bg-[#28c840] shadow-[inset_0_-1px_1px_rgba(0,0,0,0.15)]" />
           </div>
           <div className="flex-1 flex items-center justify-center gap-1.5">
-            <span className="text-[11px] text-white/40 font-mono">claudeshell</span>
+            <span className="text-[11px] text-white/40 font-mono">nesh</span>
             <span className="text-[10px] text-white/20">—</span>
             <span className="text-[10px] text-white/20 font-mono">80×24</span>
           </div>

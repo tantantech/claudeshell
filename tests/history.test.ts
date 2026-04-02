@@ -11,12 +11,12 @@ import {
 } from '../src/history.js'
 
 describe('HISTORY_PATH', () => {
-  it('ends with .claudeshell_history', () => {
-    expect(HISTORY_PATH.endsWith('.claudeshell_history')).toBe(true)
+  it('ends with .nesh_history', () => {
+    expect(HISTORY_PATH.endsWith('.nesh_history')).toBe(true)
   })
 
   it('is in the home directory', () => {
-    expect(HISTORY_PATH).toBe(path.join(os.homedir(), '.claudeshell_history'))
+    expect(HISTORY_PATH).toBe(path.join(os.homedir(), '.nesh_history'))
   })
 })
 
@@ -30,7 +30,7 @@ describe('loadHistory', () => {
   let tempDir: string
 
   beforeEach(() => {
-    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'claudeshell-hist-')))
+    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nesh-hist-')))
   })
 
   afterEach(() => {
@@ -71,7 +71,7 @@ describe('saveHistory', () => {
   let tempDir: string
 
   beforeEach(() => {
-    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'claudeshell-hist-')))
+    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nesh-hist-')))
   })
 
   afterEach(() => {

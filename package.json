@@ -1,10 +1,10 @@
 {
-  "name": "claudeshell",
+  "name": "nesh",
   "version": "0.2.0",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
-    "claudeshell": "dist/cli.js"
+    "nesh": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -31,9 +31,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tantantech/claudeshell"
+    "url": "https://github.com/tantantech/nesh"
   },
-  "description": "An AI-native shell wrapping Claude Code SDK",
+  "description": "Nesh — an AI-native terminal shell powered by Claude",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.90",
     "marked": "^15.0.12",

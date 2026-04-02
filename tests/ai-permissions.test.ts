@@ -34,7 +34,7 @@ describe('toSDKPermissionMode', () => {
 describe('buildSystemPrompt', () => {
   it('returns base prompt without project line when projectContext is null', () => {
     const result = buildSystemPrompt('/tmp', null)
-    expect(result).toContain('ClaudeShell')
+    expect(result).toContain('Nesh')
     expect(result).toContain('/tmp')
     expect(result).not.toContain('Project:')
   })

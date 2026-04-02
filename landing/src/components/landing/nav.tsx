@@ -14,7 +14,7 @@ export function Nav() {
             <Terminal className="h-4 w-4 text-primary" />
           </div>
           <span className="font-mono font-bold text-sm tracking-tight">
-            claude<span className="text-primary">shell</span>
+            ne<span className="text-primary">sh</span>
           </span>
         </a>
 
@@ -40,7 +40,7 @@ export function Nav() {
           </a>
           <div className="w-px h-5 bg-border mx-2" />
           <a
-            href="https://github.com/tantantech/claudeshell"
+            href="https://github.com/tantantech/nesh"
             target="_blank"
             rel="noopener noreferrer"
             className="h-9 w-9 rounded-xl border border-border bg-card glass-subtle flex items-center justify-center transition-all duration-300 hover:border-primary/30 hover:shadow-[0_0_12px_var(--glow)]"

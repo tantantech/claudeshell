@@ -29,7 +29,7 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
   it('returns projectContext and mergedConfig for a Node.js directory', async () => {
     const testDir = '/test/nodejs-project'
 
-    // Mock: package.json exists, .claudeshell.json does not
+    // Mock: package.json exists, .nesh.json does not
     vi.mocked(fs.existsSync).mockImplementation((p) => {
       return String(p).endsWith('package.json')
     })
@@ -55,7 +55,7 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
     expect(projectContext).not.toBeNull()
     expect(projectContext!.type).toBe('Node.js')
     expect(projectContext!.name).toBe('test-app')
-    // mergedConfig should be equivalent to globalConfig since no .claudeshell.json
+    // mergedConfig should be equivalent to globalConfig since no .nesh.json
     expect(mergedConfig.history_size).toBe(1000)
   })
 
@@ -65,7 +65,7 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const filePath = String(p)
-      if (filePath.includes('config.json') && filePath.includes('.claudeshell')) {
+      if (filePath.includes('config.json') && filePath.includes('.nesh')) {
         return JSON.stringify({ history_size: 500, model: 'claude-sonnet' })
       }
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
@@ -86,7 +86,7 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
     expect(mergedConfig.history_size).toBe(500)
   })
 
-  it('project .claudeshell.json permissions override global config', async () => {
+  it('project .nesh.json permissions override global config', async () => {
     const testDir = '/test/deny-project'
 
     vi.mocked(fs.existsSync).mockImplementation((p) => {
@@ -97,10 +97,10 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
       if (filePath.endsWith('package.json')) {
         return JSON.stringify({ name: 'secure-app' })
       }
-      if (filePath === path.join(testDir, '.claudeshell.json')) {
+      if (filePath === path.join(testDir, '.nesh.json')) {
         return JSON.stringify({ permissions: 'deny' })
       }
-      if (filePath.includes('config.json') && filePath.includes('.claudeshell/')) {
+      if (filePath.includes('config.json') && filePath.includes('.nesh/')) {
         return JSON.stringify({ permissions: 'auto', history_size: 1000 })
       }
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
@@ -119,16 +119,16 @@ describe('Shell context wiring (refreshProjectState integration)', () => {
     expect(mergedConfig.permissions).toBe('deny')
   })
 
-  it('project .claudeshell.json prefix overrides global prefix', async () => {
+  it('project .nesh.json prefix overrides global prefix', async () => {
     const testDir = '/test/custom-prefix'
 
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const filePath = String(p)
-      if (filePath === path.join(testDir, '.claudeshell.json')) {
+      if (filePath === path.join(testDir, '.nesh.json')) {
         return JSON.stringify({ prefix: 'claude' })
       }
-      if (filePath.includes('config.json') && filePath.includes('.claudeshell/')) {
+      if (filePath.includes('config.json') && filePath.includes('.nesh/')) {
         return JSON.stringify({ prefix: 'a', history_size: 1000 })
       }
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })

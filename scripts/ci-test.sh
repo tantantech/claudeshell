@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== ClaudeShell CI Test Suite ==="
+echo "=== Nesh CI Test Suite ==="
 echo ""
 
 # 1. Clean install
@@ -64,7 +64,7 @@ echo ""
 # 8. Verify --version output
 echo "--- Step 8: Verify --version ---"
 VERSION_OUTPUT=$(node dist/cli.js --version)
-if ! echo "$VERSION_OUTPUT" | grep -qE "^claudeshell v[0-9]+\.[0-9]+\.[0-9]+"; then
+if ! echo "$VERSION_OUTPUT" | grep -qE "^nesh v[0-9]+\.[0-9]+\.[0-9]+"; then
   echo "FAIL: unexpected --version output: $VERSION_OUTPUT"
   exit 1
 fi

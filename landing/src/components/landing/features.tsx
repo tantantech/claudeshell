@@ -17,7 +17,7 @@ const features = [
     icon: Terminal,
     title: "Shell First",
     description:
-      "Every command works as expected \u2014 pipes, redirects, globs. ClaudeShell delegates to your system shell.",
+      "Every command works as expected \u2014 pipes, redirects, globs. Nesh delegates to your system shell.",
     accent: "from-emerald-500/20 to-teal-500/20",
   },
   {

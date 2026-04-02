@@ -15,14 +15,14 @@ export function Footer() {
               <Terminal className="h-3.5 w-3.5 text-primary" />
             </div>
             <span className="font-mono font-bold text-sm">
-              claude<span className="text-primary">shell</span>
+              ne<span className="text-primary">sh</span>
             </span>
           </div>
 
           {/* Links */}
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a
-              href="https://github.com/tantantech/claudeshell"
+              href="https://github.com/tantantech/nesh"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors flex items-center gap-1.5"
@@ -32,7 +32,7 @@ export function Footer() {
             </a>
             <Separator orientation="vertical" className="h-4" />
             <a
-              href="https://www.npmjs.com/package/claudeshell"
+              href="https://www.npmjs.com/package/nesh"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"

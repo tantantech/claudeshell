@@ -27,9 +27,9 @@ describe('getGitBranch', () => {
 })
 
 describe('buildPrompt', () => {
-  it('contains claudeshell label', () => {
+  it('contains nesh label', () => {
     const result = buildPrompt('/Users/tal', '/Users/tal')
-    expect(result).toContain('claudeshell')
+    expect(result).toContain('nesh')
   })
 
   it('contains orange arrow character ❯', () => {

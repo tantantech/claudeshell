@@ -9,7 +9,7 @@ const steps = [
   },
   {
     number: "02",
-    title: "ClaudeShell classifies it",
+    title: "Nesh classifies it",
     description: "Builtin? Shell command? AI request? Routing is instant.",
     code: "classify(input) \u2192 builtin | passthrough | ai",
   },

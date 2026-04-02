@@ -1,12 +1,12 @@
-# ClaudeShell
+# Nesh
 
 An AI-native shell for your terminal. Type regular commands as usual — prefix with `a` to invoke Claude.
 
 ```
-  claudeshell   ~/Projects   main  ❯ ls
+  nesh   ~/Projects   main  ❯ ls
 README.md  package.json  src/  tests/
 
-  claudeshell   ~/Projects   main  ❯ a find all typescript files larger than 100 lines
+  nesh   ~/Projects   main  ❯ a find all typescript files larger than 100 lines
   → Reading src/...
   → Running wc -l src/*.ts...
 
@@ -16,12 +16,12 @@ Found 3 TypeScript files over 100 lines:
   src/config.ts   106 lines
 ```
 
-ClaudeShell wraps the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) to give Claude full access to your filesystem and terminal — reading files, running commands, and editing code — all from a single `a` prefix.
+Nesh wraps the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) to give Claude full access to your filesystem and terminal — reading files, running commands, and editing code — all from a single `a` prefix.
 
 ## Install
 
 ```bash
-npm install -g claudeshell
+npm install -g nesh
 ```
 
 Requires Node.js 22+ and an [Anthropic API key](https://console.anthropic.com/).
@@ -37,14 +37,14 @@ export ANTHROPIC_API_KEY=sk-ant-...
 Or save it to the config file:
 
 ```bash
-mkdir -p ~/.claudeshell
-echo '{"api_key": "sk-ant-..."}' > ~/.claudeshell/config.json
+mkdir -p ~/.nesh
+echo '{"api_key": "sk-ant-..."}' > ~/.nesh/config.json
 ```
 
 Then launch:
 
 ```bash
-claudeshell
+nesh
 ```
 
 ## Usage
@@ -59,7 +59,7 @@ Everything works as expected — commands are passed directly to `bash`:
 ❯ cat package.json | grep version
 ```
 
-Pipes, redirects, globs, and all shell syntax work because ClaudeShell delegates to your system shell.
+Pipes, redirects, globs, and all shell syntax work because Nesh delegates to your system shell.
 
 ### AI commands
 
@@ -81,7 +81,7 @@ Claude can read files, write files, and run commands as part of its response. Yo
 
 ### Error explanation
 
-When a command fails, ClaudeShell offers to explain:
+When a command fails, Nesh offers to explain:
 
 ```
 ❯ npm run build
@@ -102,7 +102,7 @@ The TypeScript compiler found a type mismatch...
 
 ## Configuration
 
-Config file at `~/.claudeshell/config.json`:
+Config file at `~/.nesh/config.json`:
 
 ```json
 {
@@ -117,8 +117,8 @@ All fields are optional. Environment variable `ANTHROPIC_API_KEY` takes preceden
 ## Development
 
 ```bash
-git clone https://github.com/tantantech/claudeshell.git
-cd claudeshell
+git clone https://github.com/tantantech/nesh.git
+cd nesh
 npm install
 npm run dev        # Run with tsx (no build needed)
 npm test           # Run tests (111 tests)
@@ -150,7 +150,7 @@ cli.ts → shell.ts → classify input → route to:
 ## How it works
 
 1. You type a command
-2. ClaudeShell classifies it: builtin, regular command, or AI request
+2. Nesh classifies it: builtin, regular command, or AI request
 3. **Builtins** (cd, export) run in-process to modify shell state
 4. **Regular commands** spawn `bash -c "your command"` — full shell syntax supported
 5. **AI commands** (prefixed with `a`) send your prompt to Claude via the Agent SDK, streaming the response with markdown formatting and real-time tool visibility

@@ -3,7 +3,7 @@ import pc from 'picocolors'
 import { loadConfig, resolveApiKey } from './config.js'
 import { buildResumeOptions, extractSessionId } from './session.js'
 import { extractUsage } from './cost.js'
-import type { LastError, AIResult, UsageInfo, ClaudeShellPermission } from './types.js'
+import type { LastError, AIResult, UsageInfo, NeshPermission } from './types.js'
 import type { ProjectContext } from './context.js'
 
 export interface AICallbacks {
@@ -109,7 +109,7 @@ export function parseFixResponse(text: string): string | undefined {
   return stripped
 }
 
-export function toSDKPermissionMode(mode: ClaudeShellPermission): string {
+export function toSDKPermissionMode(mode: NeshPermission): string {
   switch (mode) {
     case 'auto': return 'acceptEdits'
     case 'ask': return 'default'
@@ -119,7 +119,7 @@ export function toSDKPermissionMode(mode: ClaudeShellPermission): string {
 
 export function buildSystemPrompt(cwd: string, projectContext?: ProjectContext | null): string {
   const lines = [
-    'You are ClaudeShell, an AI assistant running inside a terminal shell.',
+    'You are Nesh, an AI assistant running inside a terminal shell.',
     `Current directory: ${cwd}`,
     `OS: ${process.platform}`,
     `Node: ${process.version}`,
@@ -196,7 +196,7 @@ export async function executeAI(
     readonly callbacks: AICallbacks
     readonly sessionId?: string
     readonly model?: string
-    readonly permissionMode?: ClaudeShellPermission
+    readonly permissionMode?: NeshPermission
     readonly projectContext?: ProjectContext | null
   }
 ): Promise<AIResult> {
@@ -228,7 +228,7 @@ export async function executeAI(
 
     const requestedMode = options.permissionMode ?? 'auto'
     // Non-TTY cannot prompt interactively -- force ask to auto (Pitfall 5)
-    const effectiveMode: ClaudeShellPermission = (requestedMode === 'ask' && !process.stdin.isTTY)
+    const effectiveMode: NeshPermission = (requestedMode === 'ask' && !process.stdin.isTTY)
       ? 'auto'
       : requestedMode
 

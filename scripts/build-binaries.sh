@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ClaudeShell - Node.js SEA Binary Builder
+# Nesh - Node.js SEA Binary Builder
 # Builds a standalone binary using Node.js Single Executable Applications (SEA).
 # Requires Node.js 22+ and postject.
 
-echo "=== ClaudeShell SEA Binary Builder ==="
+echo "=== Nesh SEA Binary Builder ==="
 
 # Detect platform and architecture
 OS="$(uname -s)"
@@ -23,7 +23,7 @@ case "$ARCH" in
   *)             echo "ERROR: Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-BINARY_NAME="claudeshell-${PLATFORM}-${ARCH_NAME}"
+BINARY_NAME="nesh-${PLATFORM}-${ARCH_NAME}"
 SEA_CONFIG="sea-config.json"
 SEA_BLOB="sea-prep.blob"
 
@@ -46,13 +46,13 @@ npx esbuild src/cli.ts \
   --platform=node \
   --target=node22 \
   --outfile="$SEA_ENTRY" \
-  --define:"import.meta.url"="'file:///claudeshell'" \
+  --define:"import.meta.url"="'file:///nesh'" \
   --log-level=warning
 
 # Patch the package.json require to use an inline object
 # SEA binaries have no filesystem access to ../package.json
 # esbuild may rename createRequire to require2/require3/etc, so match broadly
-sed -i.bak "s|require[0-9]*(\"../package.json\")|/* SEA patched */ ({ version: \"${VERSION}\", name: \"claudeshell\" })|" "$SEA_ENTRY"
+sed -i.bak "s|require[0-9]*(\"../package.json\")|/* SEA patched */ ({ version: \"${VERSION}\", name: \"nesh\" })|" "$SEA_ENTRY"
 rm -f "${SEA_ENTRY}.bak"
 echo "DONE: ${SEA_ENTRY} built (fully bundled CJS for SEA)"
 echo ""

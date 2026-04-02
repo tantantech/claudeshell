@@ -9,7 +9,7 @@ export function Hero() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText("npm install -g claudeshell");
+    await navigator.clipboard.writeText("npm install -g nesh");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -54,7 +54,7 @@ export function Hero() {
           >
             <Terminal className="h-3.5 w-3.5 text-primary/60 shrink-0" />
             <span className="text-muted-foreground/60">$</span>
-            <span className="text-foreground/90">npm install -g claudeshell</span>
+            <span className="text-foreground/90">npm install -g nesh</span>
             {copied ? (
               <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />
             ) : (
@@ -63,7 +63,7 @@ export function Hero() {
           </button>
 
           <a
-            href="https://github.com/tantantech/claudeshell"
+            href="https://github.com/tantantech/nesh"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-lg border border-primary/20 bg-primary/8 text-primary font-medium text-sm transition-all duration-300 hover:bg-primary/15 hover:border-primary/30 hover:shadow-[0_0_20px_var(--glow)]"

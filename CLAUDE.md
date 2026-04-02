@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-ClaudeShell — an AI-native terminal shell. Users type regular commands normally and prefix with `a` to invoke Claude (e.g., `a find all large files`). Built on the Claude Agent SDK for full tool-use capabilities (file read/write, command execution) with streaming responses.
+Nesh — an AI-native terminal shell. Users type regular commands normally and prefix with `a` to invoke Claude (e.g., `a find all large files`). Built on the Claude Agent SDK for full tool-use capabilities (file read/write, command execution) with streaming responses.
 
 ## Commands
 
@@ -41,7 +41,7 @@ cli.ts → shell.ts → classify.ts → route to:
 
 **Rendering:** `src/renderer.ts` — TTY mode buffers text then renders markdown via `marked` + `marked-terminal` on finish; non-TTY mode passes raw text through. Tool use displayed as dim status lines on stderr.
 
-**Config:** `src/config.ts` — loads `~/.claudeshell/config.json` (optional), resolves API key from env var then config file
+**Config:** `src/config.ts` — loads `~/.nesh/config.json` (optional), resolves API key from env var then config file
 
 **Prompt:** `src/prompt.ts` — p10k-style powerline prompt with orange/white segments, git branch detection
 
@@ -66,7 +66,7 @@ cli.ts → shell.ts → classify.ts → route to:
 
 ## npm Distribution
 
-- `"bin": { "claudeshell": "dist/cli.js" }` — global install via `npm install -g claudeshell`
+- `"bin": { "nesh": "dist/cli.js" }` — global install via `npm install -g nesh`
 - `"files": ["dist"]` — only built output ships
 - `prepublishOnly` runs build + test
 - Shebang `#!/usr/bin/env node` preserved in built output

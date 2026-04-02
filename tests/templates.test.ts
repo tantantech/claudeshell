@@ -99,7 +99,7 @@ describe('buildPromptFromTemplate', () => {
     mockedGetGitBranch.mockReturnValue('')
     for (const t of TEMPLATES) {
       const result = buildPromptFromTemplate(t, '/tmp', '/Users/tal')
-      expect(result).toContain('claudeshell')
+      expect(result).toContain('nesh')
     }
   })
 

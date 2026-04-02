@@ -40,7 +40,7 @@ export function buildPrompt(cwd: string, homedir: string): string {
   const branch = getGitBranch()
 
   // Segment 1: Shell name (orange bg, white text)
-  const seg1 = `${bg(ORANGE)}${fg(WHITE)}${BOLD}  claudeshell ${RESET}`
+  const seg1 = `${bg(ORANGE)}${fg(WHITE)}${BOLD}  nesh ${RESET}`
   const sep1 = `${fg(ORANGE)}${bg(DARK_ORANGE)}${RIGHT_SEP}${RESET}`
 
   // Segment 2: Directory (dark orange bg, white text)

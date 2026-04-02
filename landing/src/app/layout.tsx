@@ -16,7 +16,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClaudeShell \u2014 AI-Native Terminal Shell",
+  title: "Nesh \u2014 AI-Native Terminal Shell",
   description:
     "Type commands as usual. Prefix with 'a' to invoke Claude. Full filesystem & terminal access via the Agent SDK.",
   keywords: [
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "TypeScript",
   ],
   openGraph: {
-    title: "ClaudeShell \u2014 AI-Native Terminal Shell",
+    title: "Nesh \u2014 AI-Native Terminal Shell",
     description:
       "Your terminal, supercharged with AI. Built on the Claude Agent SDK.",
     type: "website",

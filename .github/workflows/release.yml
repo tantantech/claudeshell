@@ -53,8 +53,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: claudeshell-${{ matrix.platform }}-${{ matrix.arch }}
-          path: claudeshell-${{ matrix.platform }}-${{ matrix.arch }}
+          name: nesh-${{ matrix.platform }}-${{ matrix.arch }}
+          path: nesh-${{ matrix.platform }}-${{ matrix.arch }}
           if-no-files-found: error
 
   upload-release-assets:
@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: claudeshell-*
+          pattern: nesh-*
 
       - name: Upload binaries to release
         env:
@@ -72,8 +72,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          for dir in claudeshell-*/; do
-            for binary in "${dir}"claudeshell-*; do
+          for dir in nesh-*/; do
+            for binary in "${dir}"nesh-*; do
               echo "Uploading ${binary}..."
               gh release upload "${RELEASE_TAG}" "${binary}" --clobber --repo "${GH_REPO}"
             done

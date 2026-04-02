@@ -29,21 +29,21 @@ const builders: Record<string, PromptBuilder> = {
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
     const branchPart = branch ? ` ${DIM}(${branch})${RESET}` : ''
-    return `${DIM}claudeshell${RESET} ${display}${branchPart} > `
+    return `${DIM}nesh${RESET} ${display}${branchPart} > `
   },
 
   classic(cwd: string, homedir: string): string {
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
     const branchPart = branch ? ` ${fg(6)}(${branch})${RESET}` : ''
-    return `${fg(6)}[${RESET}claudeshell${fg(6)}]${RESET} \u2500 ${display}${branchPart} \u2500\u25B8 `
+    return `${fg(6)}[${RESET}nesh${fg(6)}]${RESET} \u2500 ${display}${branchPart} \u2500\u25B8 `
   },
 
   powerline(cwd: string, homedir: string): string {
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
 
-    const seg1 = `${bg(ORANGE)}${fg(WHITE)}${BOLD}  claudeshell ${RESET}`
+    const seg1 = `${bg(ORANGE)}${fg(WHITE)}${BOLD}  nesh ${RESET}`
     const sep1 = `${fg(ORANGE)}${bg(DARK_ORANGE)}${RIGHT_SEP}${RESET}`
     const seg2 = `${bg(DARK_ORANGE)}${fg(WHITE)}${BOLD}  ${display} ${RESET}`
 
@@ -64,7 +64,7 @@ const builders: Record<string, PromptBuilder> = {
     const GREEN = 2
     const g = fg(GREEN)
     const branchPart = branch ? `${g}\u2500[${RESET}${branch}${g}]${RESET}` : ''
-    return `${g}\u250C\u2500[${RESET}claudeshell${g}]\u2500[${RESET}${display}${g}]${branchPart}${RESET}\n${g}\u2514\u2500\u2500\u257C${RESET} `
+    return `${g}\u250C\u2500[${RESET}nesh${g}]\u2500[${RESET}${display}${g}]${branchPart}${RESET}\n${g}\u2514\u2500\u2500\u257C${RESET} `
   },
 
   pastel(cwd: string, homedir: string): string {
@@ -74,7 +74,7 @@ const builders: Record<string, PromptBuilder> = {
     const BLUE = 111
     const PINK = 218
     const branchPart = branch ? ` ${fg(PURPLE)}\u2502${RESET} ${fg(PINK)}${branch}${RESET}` : ''
-    return `${fg(PURPLE)}\u25CF${RESET} claudeshell ${fg(PURPLE)}\u2502${RESET} ${fg(BLUE)}${display}${RESET}${branchPart} ${fg(PURPLE)}\u276F${RESET} `
+    return `${fg(PURPLE)}\u25CF${RESET} nesh ${fg(PURPLE)}\u2502${RESET} ${fg(BLUE)}${display}${RESET}${branchPart} ${fg(PURPLE)}\u276F${RESET} `
   },
 }
 

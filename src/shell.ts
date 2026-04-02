@@ -14,15 +14,15 @@ import { runChatMode } from './chat.js'
 import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './history.js'
 import { loadConfig, loadProjectConfig, mergeConfigs, saveConfig, resolveApiKey } from './config.js'
 import { detectProject } from './context.js'
-import type { ClaudeShellConfig } from './config.js'
+import type { NeshConfig } from './config.js'
 import type { ProjectContext } from './context.js'
 import { getTemplateByName, buildPromptFromTemplate, DEFAULT_TEMPLATE_NAME } from './templates.js'
 import type { ShellState } from './types.js'
 
 function refreshProjectState(
-  globalConfig: ClaudeShellConfig,
+  globalConfig: NeshConfig,
   cwd: string
-): { readonly projectContext: ProjectContext | null; readonly mergedConfig: ClaudeShellConfig } {
+): { readonly projectContext: ProjectContext | null; readonly mergedConfig: NeshConfig } {
   const projectContext = detectProject(cwd)
   const projectConfig = loadProjectConfig(cwd)
   const mergedConfig = mergeConfigs(globalConfig, projectConfig)

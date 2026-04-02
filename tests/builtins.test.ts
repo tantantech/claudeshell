@@ -29,7 +29,7 @@ describe('executeCd', () => {
 
   beforeEach(() => {
     originalCwd = process.cwd()
-    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'claudeshell-test-')))
+    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nesh-test-')))
   })
 
   afterEach(() => {
@@ -116,7 +116,7 @@ describe('executeCd', () => {
 })
 
 describe('executeExport', () => {
-  const testEnvKey = '__CLAUDESHELL_TEST_EXPORT__'
+  const testEnvKey = '__NESH_TEST_EXPORT__'
 
   afterEach(() => {
     delete process.env[testEnvKey]

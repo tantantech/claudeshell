@@ -29,12 +29,12 @@ export function CTA() {
           {/* Install block */}
           <div className="inline-flex items-center gap-3 h-14 px-6 rounded-2xl border border-border bg-card glass terminal-glow font-mono text-base mb-8">
             <span className="text-primary">$</span>
-            <span className="text-foreground">npm install -g claudeshell</span>
+            <span className="text-foreground">npm install -g nesh</span>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
-              href="https://github.com/tantantech/claudeshell"
+              href="https://github.com/tantantech/nesh"
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -47,7 +47,7 @@ export function CTA() {
               <ArrowRight className="h-4 w-4 ml-2" />
             </a>
             <a
-              href="https://www.npmjs.com/package/claudeshell"
+              href="https://www.npmjs.com/package/nesh"
               target="_blank"
               rel="noopener noreferrer"
               className={cn(

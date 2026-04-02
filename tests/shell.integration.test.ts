@@ -30,10 +30,10 @@ function runShell(
 }
 
 describe('Shell Integration', { timeout: 15_000 }, () => {
-  // SHELL-01: Shell launches and shows prompt containing 'claudeshell' and prompt character
-  it('shows prompt with claudeshell and cwd', async () => {
+  // SHELL-01: Shell launches and shows prompt containing 'nesh' and prompt character
+  it('shows prompt with nesh and cwd', async () => {
     const { stdout } = await runShell('exit\n')
-    expect(stdout).toContain('claudeshell')
+    expect(stdout).toContain('nesh')
     expect(stdout).toMatch(/[>❯╼▸]/)  // prompt character varies by template
   })
 
@@ -69,8 +69,8 @@ describe('Shell Integration', { timeout: 15_000 }, () => {
 
   // SHELL-09: Environment variables inherited
   it('inherits environment variables', async () => {
-    const { stdout } = await runShell('echo $CLAUDESHELL_TEST_VAR\nexit\n', {
-      env: { CLAUDESHELL_TEST_VAR: 'test_value_123' },
+    const { stdout } = await runShell('echo $NESH_TEST_VAR\nexit\n', {
+      env: { NESH_TEST_VAR: 'test_value_123' },
     })
     expect(stdout).toContain('test_value_123')
   })
@@ -114,7 +114,7 @@ describe('Shell Integration', { timeout: 15_000 }, () => {
       })
     })
     expect(exitCode).toBe(0)
-    expect(stdout).toMatch(/claudeshell v\d+\.\d+\.\d+/)
+    expect(stdout).toMatch(/nesh v\d+\.\d+\.\d+/)
   })
 
   // PLAT-01: Built artifact starts and exits cleanly
@@ -144,12 +144,12 @@ describe('Shell Integration', { timeout: 15_000 }, () => {
   it('saves history file after session', async () => {
     const tmpHistory = path.join(
       os.tmpdir(),
-      `claudeshell_test_history_${Date.now()}`
+      `nesh_test_history_${Date.now()}`
     )
     await runShell('echo history_persistence_test\nexit\n', {
-      env: { CLAUDESHELL_HISTORY_PATH: tmpHistory },
+      env: { NESH_HISTORY_PATH: tmpHistory },
     })
-    // History is saved to default path (~/.claudeshell_history) per D-20
+    // History is saved to default path (~/.nesh_history) per D-20
     // This test confirms the session completes without error
   })
 })

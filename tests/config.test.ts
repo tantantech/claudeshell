@@ -74,7 +74,7 @@ describe('loadConfig', () => {
     expect(config.history_size).toBe(1000)
   })
 
-  it('reads from ~/.claudeshell/config.json path', async () => {
+  it('reads from ~/.nesh/config.json path', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       const err = new Error('ENOENT') as NodeJS.ErrnoException
       err.code = 'ENOENT'
@@ -83,7 +83,7 @@ describe('loadConfig', () => {
     const { loadConfig } = await loadModule()
     loadConfig()
     expect(vi.mocked(fs.readFileSync)).toHaveBeenCalledWith(
-      path.join('/mock-home', '.claudeshell', 'config.json'),
+      path.join('/mock-home', '.nesh', 'config.json'),
       'utf-8'
     )
   })
@@ -178,10 +178,10 @@ describe('loadProjectConfig', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns partial config when valid .claudeshell.json exists with model override', async () => {
+  it('returns partial config when valid .nesh.json exists with model override', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const s = String(p)
-      if (s.endsWith('.claudeshell.json')) {
+      if (s.endsWith('.nesh.json')) {
         return JSON.stringify({ model: 'claude-opus' })
       }
       const err = new Error('ENOENT') as NodeJS.ErrnoException
@@ -194,7 +194,7 @@ describe('loadProjectConfig', () => {
     expect(result!.model).toBe('claude-opus')
   })
 
-  it('returns null when .claudeshell.json does not exist', async () => {
+  it('returns null when .nesh.json does not exist', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       const err = new Error('ENOENT') as NodeJS.ErrnoException
       err.code = 'ENOENT'
@@ -208,7 +208,7 @@ describe('loadProjectConfig', () => {
   it('warns to stderr and returns null for invalid JSON', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const s = String(p)
-      if (s.endsWith('.claudeshell.json')) {
+      if (s.endsWith('.nesh.json')) {
         return 'not valid json {{{'
       }
       const err = new Error('ENOENT') as NodeJS.ErrnoException
@@ -226,7 +226,7 @@ describe('loadProjectConfig', () => {
   it('validates fields -- only accepts known fields', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const s = String(p)
-      if (s.endsWith('.claudeshell.json')) {
+      if (s.endsWith('.nesh.json')) {
         return JSON.stringify({ model: 'claude-opus', unknown_field: 'ignored', extra: 123 })
       }
       const err = new Error('ENOENT') as NodeJS.ErrnoException
@@ -244,7 +244,7 @@ describe('loadProjectConfig', () => {
   it('validates permissions field -- only accepts auto, ask, deny', async () => {
     vi.mocked(fs.readFileSync).mockImplementation((p) => {
       const s = String(p)
-      if (s.endsWith('.claudeshell.json')) {
+      if (s.endsWith('.nesh.json')) {
         return JSON.stringify({ permissions: 'invalid-mode' })
       }
       const err = new Error('ENOENT') as NodeJS.ErrnoException
@@ -311,12 +311,12 @@ describe('ensureConfigDir', () => {
     vi.restoreAllMocks()
   })
 
-  it('creates ~/.claudeshell/ directory with recursive option', async () => {
+  it('creates ~/.nesh/ directory with recursive option', async () => {
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined)
     const { ensureConfigDir } = await loadModule()
     ensureConfigDir()
     expect(vi.mocked(fs.mkdirSync)).toHaveBeenCalledWith(
-      path.join('/mock-home', '.claudeshell'),
+      path.join('/mock-home', '.nesh'),
       { recursive: true }
     )
   })

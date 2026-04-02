@@ -44,7 +44,7 @@ export async function runPipe(
   try {
     stdinContent = await collectStdin(stream)
   } catch (err) {
-    process.stderr.write(`ClaudeShell error: ${(err as Error).message}\n`)
+    process.stderr.write(`Nesh error: ${(err as Error).message}\n`)
     process.exit(1)
     return
   }

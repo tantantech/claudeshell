@@ -5,7 +5,7 @@ import { createRenderer, renderCostFooter } from './renderer.js'
 import { createSessionId } from './session.js'
 import { EMPTY_ACCUMULATOR, accumulate } from './cost.js'
 import type { ShellState, UsageInfo } from './types.js'
-import type { ClaudeShellConfig } from './config.js'
+import type { NeshConfig } from './config.js'
 
 export const MODEL_SHORTHANDS: Readonly<Record<string, string>> = {
   haiku: 'claude-haiku-4-5-20251001',
@@ -58,7 +58,7 @@ export function parseSlashCommand(raw: string): SlashCommandResult {
 export async function runChatMode(params: {
   readonly rl: readline.Interface
   readonly state: ShellState
-  readonly config: ClaudeShellConfig
+  readonly config: NeshConfig
 }): Promise<ShellState> {
   const { rl, config } = params
   let state = params.state
