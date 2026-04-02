@@ -130,6 +130,8 @@ export async function runChatMode(params: {
         },
         sessionId: state.sessionId,
         model: state.currentModel,
+        permissionMode: state.permissionMode,
+        projectContext: state.projectContext,
       })
 
       renderer.finish()

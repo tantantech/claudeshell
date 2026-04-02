@@ -12,13 +12,28 @@ import { createSessionId } from './session.js'
 import { EMPTY_ACCUMULATOR, accumulate } from './cost.js'
 import { runChatMode } from './chat.js'
 import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './history.js'
-import { loadConfig, saveConfig, resolveApiKey } from './config.js'
+import { loadConfig, loadProjectConfig, mergeConfigs, saveConfig, resolveApiKey } from './config.js'
+import { detectProject } from './context.js'
+import type { ClaudeShellConfig } from './config.js'
+import type { ProjectContext } from './context.js'
 import { getTemplateByName, buildPromptFromTemplate, DEFAULT_TEMPLATE_NAME } from './templates.js'
 import type { ShellState } from './types.js'
 
+function refreshProjectState(
+  globalConfig: ClaudeShellConfig,
+  cwd: string
+): { readonly projectContext: ProjectContext | null; readonly mergedConfig: ClaudeShellConfig } {
+  const projectContext = detectProject(cwd)
+  const projectConfig = loadProjectConfig(cwd)
+  const mergedConfig = mergeConfigs(globalConfig, projectConfig)
+  return { projectContext, mergedConfig }
+}
+
 export async function runShell(): Promise<void> {
-  const config = loadConfig()
-  const prefix = config.prefix ?? 'a'
+  const globalConfig = loadConfig()
+  const initialState = refreshProjectState(globalConfig, process.cwd())
+  const config = initialState.mergedConfig
+  let prefix = config.prefix ?? 'a'
   let currentTemplate = config.prompt_template ?? DEFAULT_TEMPLATE_NAME
   const historyLines = loadHistory(HISTORY_PATH)
 
@@ -40,8 +55,8 @@ export async function runShell(): Promise<void> {
     currentModel: config.model,
     sessionCost: EMPTY_ACCUMULATOR,
     lastSuggestedFix: undefined,
-    projectContext: null,
-    permissionMode: 'auto',
+    projectContext: initialState.projectContext,
+    permissionMode: config.permissions ?? 'auto',
   }
 
   let currentAbortController: AbortController | undefined
@@ -93,7 +108,18 @@ export async function runShell(): Promise<void> {
               const result = executeCd(action.args, state.cdState)
               state = { ...state, cdState: result.newState }
               if (result.output) process.stdout.write(result.output + '\n')
-              if (result.error) process.stderr.write(result.error + '\n')
+              if (result.error) {
+                process.stderr.write(result.error + '\n')
+              } else {
+                const refreshed = refreshProjectState(globalConfig, process.cwd())
+                prefix = refreshed.mergedConfig.prefix ?? prefix
+                state = {
+                  ...state,
+                  projectContext: refreshed.projectContext,
+                  permissionMode: refreshed.mergedConfig.permissions ?? state.permissionMode,
+                  currentModel: refreshed.mergedConfig.model ?? state.currentModel,
+                }
+              }
               break
             }
             case 'export': {
@@ -151,6 +177,8 @@ export async function runShell(): Promise<void> {
                 },
                 sessionId: state.sessionId,
                 model: state.currentModel,
+                permissionMode: 'auto',
+                projectContext: state.projectContext,
               })
               const fixCmd = parseFixResponse(fixResponseText)
               if (fixCmd) {
@@ -221,6 +249,8 @@ export async function runShell(): Promise<void> {
             },
             sessionId: state.sessionId,
             model,
+            permissionMode: state.permissionMode,
+            projectContext: state.projectContext,
           })
 
           renderer.finish()
