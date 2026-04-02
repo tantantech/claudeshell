@@ -34,7 +34,7 @@ describe('Shell Integration', { timeout: 15_000 }, () => {
   it('shows prompt with claudeshell and cwd', async () => {
     const { stdout } = await runShell('exit\n')
     expect(stdout).toContain('claudeshell')
-    expect(stdout).toContain('╼')
+    expect(stdout).toMatch(/[>❯╼▸]/)  // prompt character varies by template
   })
 
   // SHELL-02: Shell executes commands and shows output
