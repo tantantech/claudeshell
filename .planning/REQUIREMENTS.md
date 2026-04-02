@@ -1,118 +1,121 @@
-# Requirements: ClaudeShell
+# Requirements: ClaudeShell v2.0
 
-**Defined:** 2026-03-31
+**Defined:** 2026-04-02
 **Core Value:** Running AI-assisted commands feels as natural and fast as running normal shell commands
 
-## v1 Requirements
+## v2.0 Requirements
 
-### Shell Foundation
+### Sessions & Chat Mode
 
-- [x] **SHELL-01**: User can launch ClaudeShell as an interactive REPL with a visible prompt showing current directory
-- [x] **SHELL-02**: User can type standard shell commands (ls, git, npm, etc.) and they execute via system shell
-- [x] **SHELL-03**: User can use `cd` to change working directory and the prompt updates accordingly
-- [x] **SHELL-04**: User can use pipes, redirects, and shell syntax in standard commands (delegated to bash)
-- [x] **SHELL-05**: User can press Ctrl+C to cancel a running command without exiting the shell
-- [x] **SHELL-06**: User can press Ctrl+D or type `exit` to quit the shell
-- [x] **SHELL-07**: User can navigate command history with up/down arrows
-- [x] **SHELL-08**: Command history persists across shell sessions
-- [x] **SHELL-09**: Environment variables from user's shell profile are inherited
+- [ ] **SESS-01**: AI remembers context across multiple `a` commands in the same session (conversation continues)
+- [ ] **SESS-02**: User can type `/new` to start a fresh AI context without restarting the shell
+- [ ] **SESS-03**: User can select AI model per query (`a --haiku`, `a --opus`) or set default in config
+- [ ] **SESS-04**: User can enter "chat mode" by typing `a` with no prompt — enters a continuous conversation with Claude where every line goes to AI until user types `/exit` or `/shell` to return
+- [ ] **SESS-05**: Chat mode and shell mode transitions are instant (no delay, no context loss)
+- [ ] **SESS-06**: Chat mode shows a distinct prompt (e.g., `ai >`) so user always knows which mode they're in
 
-### AI Integration
+### Pipe & Unix Integration
 
-- [x] **AI-01**: User can type `a <prompt>` to send a request to Claude via Claude Agent SDK
-- [x] **AI-02**: Claude's response streams back to the terminal in real-time (not waiting for full response)
-- [x] **AI-03**: User can press Ctrl+C during an AI response to cancel the streaming query
-- [x] **AI-04**: Claude has access to read and write files in the user's filesystem via SDK tools
-- [x] **AI-05**: Claude can execute shell commands as part of its response via SDK tools
-- [x] **AI-06**: User sees when Claude is using tools (reading files, running commands) in real-time
-- [x] **AI-07**: AI responses are rendered with markdown formatting and syntax highlighting
+- [ ] **PIPE-01**: User can pipe input to AI (`cat log.txt | a summarize`) — stdin is passed as context
+- [ ] **PIPE-02**: When stdout is piped, AI output is plain text without colors or markdown formatting
+- [ ] **PIPE-03**: User can chain AI output into other commands (`a generate csv | head -5`)
+
+### Error Recovery
+
+- [ ] **ERR-04**: When a command fails, AI automatically offers a suggested fix (not just explain — actionable fix)
+- [ ] **ERR-05**: User can type `a fix` to let AI attempt to fix the last failed command automatically
+
+### Project Context
+
+- [ ] **CTX-01**: Shell detects project type from markers (package.json, Cargo.toml, go.mod, etc.) and includes project context in AI system prompt
+- [ ] **CTX-02**: User can place a `.claudeshell.json` in any directory for per-project config overrides (model, prefix, permissions)
+
+### Permission Control
+
+- [ ] **PERM-01**: User can configure permission mode (auto-approve, ask-each-time, or deny-all) for AI file edits
+- [ ] **PERM-02**: When permission mode is "ask", user sees what Claude wants to do and can approve/deny inline
+- [ ] **PERM-03**: Permission mode is configurable globally and per-project
+
+### Visibility & Cost
+
+- [ ] **VIS-01**: After each AI response, show token count and estimated cost
+- [ ] **VIS-02**: In chat mode, show cumulative session cost
+
+### Interactive Commands
+
+- [ ] **PTY-01**: Interactive commands (vim, ssh, less, htop) work correctly via PTY passthrough
+- [ ] **PTY-02**: Shell prompt restores cleanly after interactive command exits
 
 ### Configuration
 
-- [x] **CONF-01**: User can configure API key via ANTHROPIC_API_KEY environment variable
-- [x] **CONF-02**: Shell shows a helpful error message if API key is missing when `a` command is used
-- [x] **CONF-03**: User can configure settings via a `~/.claudeshell/config` file
+- [ ] **CFG-01**: User can configure a custom AI command prefix (not just `a`) via config
+- [ ] **CFG-02**: Per-project `.claudeshell.json` overrides global config when present
 
-### Error Handling
+## v1.0 Validated
 
-- [x] **ERR-01**: When a command fails, user can ask AI to explain the error
-- [x] **ERR-02**: SDK errors (rate limits, auth failures, network) show clear user-friendly messages
-- [x] **ERR-03**: Shell never crashes from malformed input or unexpected errors
+- ✓ SHELL-01 through SHELL-09: Interactive REPL, passthrough, cd, pipes, signals, history — v1.0
+- ✓ AI-01 through AI-07: Claude Agent SDK streaming, tool visibility, markdown rendering — v1.0
+- ✓ CONF-01, CONF-02, CONF-03: API key config, error messages, config file — v1.0
+- ✓ ERR-01, ERR-02, ERR-03: Error explanation, SDK errors, crash resilience — v1.0
+- ✓ PLAT-01, PLAT-02, PLAT-03: macOS, Linux, npm install — v1.0
 
-### Platform
+## Future Requirements
 
-- [x] **PLAT-01**: Works on macOS (primary platform)
-- [x] **PLAT-02**: Works on Linux
-- [x] **PLAT-03**: Installable via npm (`npm install -g claudeshell`)
+### Advanced Sessions
 
-## v2 Requirements
+- **ADV-01**: Session history browser (list past sessions, resume old ones)
+- **ADV-02**: Session export/sharing (save conversation to file)
+- **ADV-03**: Multi-model conversations within a session
 
-### Sessions & Context
+### Ecosystem
 
-- **SESS-01**: AI remembers context across multiple `a` commands in the same session
-- **SESS-02**: User can start a fresh AI context with a slash command
-- **SESS-03**: User can select AI model (Haiku/Sonnet/Opus) per query or session
-
-### Power Features
-
-- **PWR-01**: Pipe-friendly AI output (`cat log.txt | a summarize`)
-- **PWR-02**: Automatic error recovery (AI diagnoses failure and offers fix)
-- **PWR-03**: Project context awareness (detects package.json, Cargo.toml, etc.)
-- **PWR-04**: Permission control for AI file edits and command execution
-- **PWR-05**: Token/cost display after each AI response
-- **PWR-06**: Interactive command support via PTY (vim, ssh, less)
-- **PWR-07**: Per-project configuration overrides
-- **PWR-08**: Configurable AI command prefix (not just `a`)
+- **ECO-01**: Tab completion for `a` commands using AI
+- **ECO-02**: Shell plugin system for custom commands
+- **ECO-03**: Integration with git hooks
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Full bash/zsh compatibility (plugins, themes, oh-my-zsh) | Impossible to replicate; delegate to system shell instead |
-| GUI or TUI with panels/splits | Conflicts with "feels like a shell" value prop |
-| Multi-model support (GPT, Gemini, etc.) | Claude-first; SDK tools are the differentiator |
-| Cloud sync of history/config | Privacy concerns; local-first for simplicity |
-| Terminal emulator | We run inside terminals, not replace them |
-| Plugin/theme system | Massive scope creep; users already customize their terminal |
-| Autonomous agent mode | Shell commands are destructive; AI suggests, user approves |
-| Team collaboration | Requires accounts/servers; single-user tool |
-| Built-in code editor | Claude Code already does this; AI edits via SDK tools |
+| Full bash/zsh compatibility | Delegate to system shell |
+| GUI or TUI with panels | Terminal-native, inline only |
+| Multi-provider support (GPT, Gemini) | Claude-first, SDK is the differentiator |
+| Cloud sync | Local-first for privacy |
+| Autonomous agent mode | AI suggests, user approves |
+| Team collaboration | Single-user tool |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SHELL-01 | Phase 1 | Complete |
-| SHELL-02 | Phase 1 | Complete |
-| SHELL-03 | Phase 1 | Complete |
-| SHELL-04 | Phase 1 | Complete |
-| SHELL-05 | Phase 1 | Complete |
-| SHELL-06 | Phase 1 | Complete |
-| SHELL-07 | Phase 1 | Complete |
-| SHELL-08 | Phase 1 | Complete |
-| SHELL-09 | Phase 1 | Complete |
-| AI-01 | Phase 2 | Complete |
-| AI-02 | Phase 2 | Complete |
-| AI-03 | Phase 2 | Complete |
-| AI-04 | Phase 2 | Complete |
-| AI-05 | Phase 2 | Complete |
-| AI-06 | Phase 2 | Complete |
-| AI-07 | Phase 2 | Complete |
-| CONF-01 | Phase 2 | Complete |
-| CONF-02 | Phase 2 | Complete |
-| CONF-03 | Phase 3 | Complete |
-| ERR-01 | Phase 2 | Complete |
-| ERR-02 | Phase 2 | Complete |
-| ERR-03 | Phase 1 | Complete |
-| PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 3 | Complete |
-| PLAT-03 | Phase 3 | Complete |
+| SESS-01 | TBD | Pending |
+| SESS-02 | TBD | Pending |
+| SESS-03 | TBD | Pending |
+| SESS-04 | TBD | Pending |
+| SESS-05 | TBD | Pending |
+| SESS-06 | TBD | Pending |
+| PIPE-01 | TBD | Pending |
+| PIPE-02 | TBD | Pending |
+| PIPE-03 | TBD | Pending |
+| ERR-04 | TBD | Pending |
+| ERR-05 | TBD | Pending |
+| CTX-01 | TBD | Pending |
+| CTX-02 | TBD | Pending |
+| PERM-01 | TBD | Pending |
+| PERM-02 | TBD | Pending |
+| PERM-03 | TBD | Pending |
+| VIS-01 | TBD | Pending |
+| VIS-02 | TBD | Pending |
+| PTY-01 | TBD | Pending |
+| PTY-02 | TBD | Pending |
+| CFG-01 | TBD | Pending |
+| CFG-02 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 25
-- Unmapped: 0
+- v2.0 requirements: 22 total
+- Mapped to phases: 0
+- Unmapped: 22
 
 ---
-*Requirements defined: 2026-03-31*
-*Last updated: 2026-03-31 after roadmap creation*
+*Requirements defined: 2026-04-02*
+*Last updated: 2026-04-02 after milestone v2.0 definition*
