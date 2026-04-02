@@ -19,9 +19,13 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["shell", "terminal", "cli", "claude", "ai", "agent"],
+  "author": "tantan_tald",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taldagan/claudeshell"
+  },
   "description": "An AI-native shell wrapping Claude Code SDK",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.88",
