@@ -1,3 +1,6 @@
 node_modules/
 dist/
 *.tsbuildinfo
+claudeshell-*
+sea-config.json
+sea-prep.blob
