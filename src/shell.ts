@@ -6,7 +6,10 @@ import { classifyInput } from './classify.js'
 import { executeCd, executeExport, executeTheme } from './builtins.js'
 import { executeCommand } from './passthrough.js'
 import { executeAI } from './ai.js'
-import { createRenderer } from './renderer.js'
+import { createRenderer, renderCostFooter } from './renderer.js'
+import { createSessionId } from './session.js'
+import { EMPTY_ACCUMULATOR, accumulate } from './cost.js'
+import { runChatMode } from './chat.js'
 import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './history.js'
 import { loadConfig, saveConfig } from './config.js'
 import { getTemplateByName, buildPromptFromTemplate, DEFAULT_TEMPLATE_NAME } from './templates.js'
@@ -30,10 +33,10 @@ export async function runShell(): Promise<void> {
     running: true,
     lastError: undefined,
     aiStreaming: false,
-    sessionId: undefined,
+    sessionId: createSessionId(),
     chatMode: false,
-    currentModel: undefined,
-    sessionCost: { totalCostUsd: 0, totalInputTokens: 0, totalOutputTokens: 0, messageCount: 0 },
+    currentModel: config.model,
+    sessionCost: EMPTY_ACCUMULATOR,
   }
 
   let currentAbortController: AbortController | undefined
@@ -132,13 +135,21 @@ export async function runShell(): Promise<void> {
         }
 
         case 'ai': {
+          // Empty prompt means enter chat mode
+          if (!action.prompt) {
+            state = { ...state, chatMode: true }
+            state = await runChatMode({ rl, state, config })
+            break
+          }
+
           const abortController = new AbortController()
           currentAbortController = abortController
           state = { ...state, aiStreaming: true }
 
+          const model = action.model ?? state.currentModel
           const renderer = createRenderer({ isTTY: process.stdout.isTTY ?? false })
 
-          await executeAI(action.prompt, {
+          const result = await executeAI(action.prompt, {
             cwd: process.cwd(),
             lastError: state.lastError,
             abortController,
@@ -150,9 +161,23 @@ export async function runShell(): Promise<void> {
                 process.stderr.write(msg + '\n')
               },
             },
+            sessionId: state.sessionId,
+            model,
           })
 
           renderer.finish()
+
+          // Update session ID from first response
+          if (result.sessionId) {
+            state = { ...state, sessionId: result.sessionId }
+          }
+
+          // Display cost footer and accumulate session cost
+          if (result.usage) {
+            renderCostFooter(result.usage)
+            state = { ...state, sessionCost: accumulate(state.sessionCost, result.usage) }
+          }
+
           state = { ...state, aiStreaming: false }
           currentAbortController = undefined
           break
