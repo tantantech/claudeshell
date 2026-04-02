@@ -7,6 +7,7 @@ import { HowItWorks } from "@/components/landing/how-it-works";
 import { Architecture } from "@/components/landing/architecture";
 import { CTA } from "@/components/landing/cta";
 import { Footer } from "@/components/landing/footer";
+import { FadeIn } from "@/components/landing/fade-in";
 
 export default function Home() {
   return (
@@ -21,15 +22,27 @@ export default function Home() {
       <main className="relative z-10 flex-1">
         <Hero />
 
-        {/* Terminal demo section */}
-        <section id="demo" className="relative z-10 pb-16 px-4 sm:px-6">
-          <TerminalDemo />
-        </section>
+        <FadeIn>
+          <section id="demo" className="relative z-10 pb-16 px-4 sm:px-6">
+            <TerminalDemo />
+          </section>
+        </FadeIn>
 
-        <Features />
-        <HowItWorks />
-        <Architecture />
-        <CTA />
+        <FadeIn>
+          <Features />
+        </FadeIn>
+
+        <FadeIn>
+          <HowItWorks />
+        </FadeIn>
+
+        <FadeIn>
+          <Architecture />
+        </FadeIn>
+
+        <FadeIn>
+          <CTA />
+        </FadeIn>
       </main>
 
       <Footer />

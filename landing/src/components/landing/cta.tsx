@@ -39,7 +39,7 @@ export function CTA() {
               rel="noopener noreferrer"
               className={cn(
                 buttonVariants({ size: "lg" }),
-                "h-12 px-8 rounded-xl font-semibold pulse-glow bg-primary text-primary-foreground hover:bg-primary/90"
+                "h-12 px-8 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90"
               )}
             >
               <GithubIcon className="h-4 w-4 mr-2" />
