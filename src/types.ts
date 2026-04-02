@@ -42,6 +42,7 @@ export interface ShellState {
   readonly running: boolean
   readonly lastError: LastError | undefined
   readonly aiStreaming: boolean
+  readonly interactiveRunning: boolean
   readonly sessionId: string | undefined
   readonly chatMode: boolean
   readonly currentModel: string | undefined

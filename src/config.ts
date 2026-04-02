@@ -9,6 +9,7 @@ export interface NeshConfig {
   readonly prompt_template?: string
   readonly prefix?: string
   readonly permissions?: 'auto' | 'ask' | 'deny'
+  readonly interactive_commands?: readonly string[]
 }
 
 const VALID_PERMISSIONS = ['auto', 'ask', 'deny'] as const
@@ -51,6 +52,7 @@ export function loadConfig(): NeshConfig {
       ...(typeof obj.prompt_template === 'string' ? { prompt_template: obj.prompt_template } : {}),
       ...(validatePrefix(obj.prefix) !== undefined ? { prefix: validatePrefix(obj.prefix) } : {}),
       ...(validatePermissions(obj.permissions) !== undefined ? { permissions: validatePermissions(obj.permissions) } : {}),
+      ...(Array.isArray(obj.interactive_commands) && obj.interactive_commands.every((x: unknown) => typeof x === 'string') ? { interactive_commands: obj.interactive_commands as readonly string[] } : {}),
     }
 
     return config
@@ -97,6 +99,9 @@ export function loadProjectConfig(cwd: string): Partial<NeshConfig> | null {
     if (validatedPrefix !== undefined) result.prefix = validatedPrefix
     const validatedPerms = validatePermissions(obj.permissions)
     if (validatedPerms !== undefined) result.permissions = validatedPerms
+    if (Array.isArray(obj.interactive_commands) && obj.interactive_commands.every((x: unknown) => typeof x === 'string')) {
+      result.interactive_commands = obj.interactive_commands as readonly string[]
+    }
 
     if (Object.keys(result).length === 0) return null
 

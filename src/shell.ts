@@ -50,6 +50,7 @@ export async function runShell(): Promise<void> {
     running: true,
     lastError: undefined,
     aiStreaming: false,
+    interactiveRunning: false,
     sessionId: createSessionId(),
     chatMode: false,
     currentModel: config.model,
