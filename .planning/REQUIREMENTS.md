@@ -27,8 +27,8 @@
 
 ### Project Context
 
-- [ ] **CTX-01**: Shell detects project type from markers (package.json, Cargo.toml, go.mod, etc.) and includes project context in AI system prompt
-- [ ] **CTX-02**: User can place a `.claudeshell.json` in any directory for per-project config overrides (model, prefix, permissions)
+- [x] **CTX-01**: Shell detects project type from markers (package.json, Cargo.toml, go.mod, etc.) and includes project context in AI system prompt
+- [x] **CTX-02**: User can place a `.claudeshell.json` in any directory for per-project config overrides (model, prefix, permissions)
 
 ### Permission Control
 
@@ -49,7 +49,7 @@
 ### Configuration
 
 - [x] **CFG-01**: User can configure a custom AI command prefix (not just `a`) via config
-- [ ] **CFG-02**: Per-project `.claudeshell.json` overrides global config when present
+- [x] **CFG-02**: Per-project `.claudeshell.json` overrides global config when present
 
 ## v1.0 Validated
 
@@ -99,8 +99,8 @@
 | PIPE-03 | Phase 5 | Complete |
 | ERR-04 | Phase 5 | Complete |
 | ERR-05 | Phase 5 | Complete |
-| CTX-01 | Phase 6 | Pending |
-| CTX-02 | Phase 6 | Pending |
+| CTX-01 | Phase 6 | Complete |
+| CTX-02 | Phase 6 | Complete |
 | PERM-01 | Phase 6 | Pending |
 | PERM-02 | Phase 6 | Pending |
 | PERM-03 | Phase 6 | Pending |
@@ -109,7 +109,7 @@
 | PTY-01 | Phase 7 | Pending |
 | PTY-02 | Phase 7 | Pending |
 | CFG-01 | Phase 5 | Complete |
-| CFG-02 | Phase 6 | Pending |
+| CFG-02 | Phase 6 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 22 total
