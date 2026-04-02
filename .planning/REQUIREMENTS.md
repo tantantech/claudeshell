@@ -7,8 +7,8 @@
 
 ### Sessions & Chat Mode
 
-- [ ] **SESS-01**: AI remembers context across multiple `a` commands in the same session (conversation continues)
-- [ ] **SESS-02**: User can type `/new` to start a fresh AI context without restarting the shell
+- [x] **SESS-01**: AI remembers context across multiple `a` commands in the same session (conversation continues)
+- [x] **SESS-02**: User can type `/new` to start a fresh AI context without restarting the shell
 - [ ] **SESS-03**: User can select AI model per query (`a --haiku`, `a --opus`) or set default in config
 - [ ] **SESS-04**: User can enter "chat mode" by typing `a` with no prompt — enters a continuous conversation with Claude where every line goes to AI until user types `/exit` or `/shell` to return
 - [ ] **SESS-05**: Chat mode and shell mode transitions are instant (no delay, no context loss)
@@ -38,8 +38,8 @@
 
 ### Visibility & Cost
 
-- [ ] **VIS-01**: After each AI response, show token count and estimated cost
-- [ ] **VIS-02**: In chat mode, show cumulative session cost
+- [x] **VIS-01**: After each AI response, show token count and estimated cost
+- [x] **VIS-02**: In chat mode, show cumulative session cost
 
 ### Interactive Commands
 
@@ -88,8 +88,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SESS-01 | Phase 4 | Pending |
-| SESS-02 | Phase 4 | Pending |
+| SESS-01 | Phase 4 | Complete |
+| SESS-02 | Phase 4 | Complete |
 | SESS-03 | Phase 4 | Pending |
 | SESS-04 | Phase 4 | Pending |
 | SESS-05 | Phase 4 | Pending |
@@ -104,8 +104,8 @@
 | PERM-01 | Phase 6 | Pending |
 | PERM-02 | Phase 6 | Pending |
 | PERM-03 | Phase 6 | Pending |
-| VIS-01 | Phase 4 | Pending |
-| VIS-02 | Phase 4 | Pending |
+| VIS-01 | Phase 4 | Complete |
+| VIS-02 | Phase 4 | Complete |
 | PTY-01 | Phase 7 | Pending |
 | PTY-02 | Phase 7 | Pending |
 | CFG-01 | Phase 5 | Pending |

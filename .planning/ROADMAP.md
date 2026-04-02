@@ -89,7 +89,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Foundation types, session.ts, and cost.ts modules
+- [x] 04-01-PLAN.md — Foundation types, session.ts, and cost.ts modules
 - [ ] 04-02-PLAN.md — Model flag parsing, AI pipeline session/model/cost wiring
 - [ ] 04-03-PLAN.md — Chat mode module and shell REPL integration
 
