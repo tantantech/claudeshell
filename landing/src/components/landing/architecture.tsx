@@ -17,10 +17,10 @@ const modules = [
 
 export function Architecture() {
   return (
-    <section id="architecture" className="relative z-10 py-32 px-4 sm:px-6">
+    <section id="architecture" className="relative z-10 py-16 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
         {/* Section header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <p className="font-mono text-xs tracking-widest text-primary uppercase mb-3">
             Architecture
           </p>

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export function CTA() {
   return (
-    <section className="relative z-10 py-32 px-4 sm:px-6">
+    <section className="relative z-10 py-16 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto text-center">
         {/* Glow */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-primary/6 dark:bg-primary/3 rounded-full blur-[100px] pointer-events-none" />
