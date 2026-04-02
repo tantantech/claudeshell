@@ -10,8 +10,10 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0)
 }
 
-if (!process.stdin.isTTY) {
-  const prompt = process.argv.slice(2).join(' ')
+const forceInteractive = process.argv.includes('--interactive')
+
+if (!process.stdin.isTTY && !forceInteractive) {
+  const prompt = process.argv.filter(a => a !== '--interactive').slice(2).join(' ')
   runPipe(prompt).catch((err) => {
     process.stderr.write(`Nesh error: ${(err as Error).message}\n`)
     process.exit(1)

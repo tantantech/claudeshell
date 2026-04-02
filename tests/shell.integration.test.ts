@@ -8,7 +8,7 @@ function runShell(
   options?: { cwd?: string; env?: Record<string, string> }
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const child = spawn('npx', ['tsx', 'src/cli.ts'], {
+    const child = spawn('npx', ['tsx', 'src/cli.ts', '--interactive'], {
       cwd: options?.cwd ?? process.cwd(),
       env: { ...process.env, ...options?.env, TERM: 'dumb' },
       stdio: ['pipe', 'pipe', 'pipe'],
