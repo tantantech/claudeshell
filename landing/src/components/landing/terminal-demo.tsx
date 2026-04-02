@@ -241,12 +241,35 @@ export function TerminalDemo() {
         return;
       }
       const line = DEMO_LINES[lineIndex];
+
+      if (line.type === "prompt") {
+        // Show prompt with idle cursor immediately, then wait for command
+        const nextLine = DEMO_LINES[lineIndex + 1];
+        const promptDelay = nextLine?.delay ?? 500;
+        // Add an idle prompt line to rendered output
+        setRenderedLines((prev) => [
+          ...prev,
+          { line, typed: "__idle__" },
+        ]);
+        timerRef.current = setTimeout(() => {
+          // Replace idle prompt with typing prompt
+          setRenderedLines((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = {
+              line: DEMO_LINES[lineIndex + 1] ?? line,
+              typed: "",
+            };
+            return next;
+          });
+          setPhase({ kind: "typing", lineIndex: lineIndex + 1, charIndex: 0 });
+        }, promptDelay);
+        return clearTimer;
+      }
+
       timerRef.current = setTimeout(() => {
         if (line.type === "command") {
           setRenderedLines((prev) => [...prev, { line, typed: "" }]);
           setPhase({ kind: "typing", lineIndex, charIndex: 0 });
-        } else if (line.type === "prompt") {
-          setPhase({ kind: "waiting", lineIndex: lineIndex + 1 });
         } else {
           setRenderedLines((prev) => [...prev, { line }]);
           setPhase({ kind: "waiting", lineIndex: lineIndex + 1 });
@@ -339,6 +362,19 @@ export function TerminalDemo() {
           }}
         >
           {renderedLines.map((entry, i) => {
+            // Idle prompt (waiting for command)
+            if (entry.typed === "__idle__") {
+              return (
+                <div
+                  key={i}
+                  className="min-h-[1.5rem] flex items-center gap-2 flex-wrap"
+                >
+                  <PromptSegment />
+                  <Cursor />
+                </div>
+              );
+            }
+
             // Typing line (prompt + partial command)
             if (entry.typed !== undefined) {
               return (
@@ -397,16 +433,7 @@ export function TerminalDemo() {
             );
           })}
 
-          {/* Idle cursor */}
-          {phase.kind === "waiting" &&
-            phase.lineIndex < DEMO_LINES.length &&
-            DEMO_LINES[phase.lineIndex]?.type === "prompt" && (
-              <div className="min-h-[1.5rem] flex items-center gap-2">
-                <PromptSegment />
-                <Cursor />
-              </div>
-            )}
-
+          {/* Final cursor after all lines */}
           {phase.kind === "done" && (
             <div className="min-h-[1.5rem] flex items-center gap-2 mt-1">
               <PromptSegment />
