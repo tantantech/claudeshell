@@ -1,169 +1,174 @@
 # Project Research Summary
 
-**Project:** ClaudeShell - AI-native interactive terminal shell
-**Domain:** AI-powered CLI / shell wrapper
+**Project:** ClaudeShell v2.0 — Sessions & Power Features
+**Domain:** AI-native interactive terminal shell (Node.js/TypeScript)
 **Researched:** 2026-03-31
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ClaudeShell is a shell wrapper that embeds Claude's full agent capabilities via the Claude Agent SDK, invoked through a single-character `a` prefix. It occupies a unique gap between full terminal replacements (Warp), agentic coding CLIs (Claude Code), and simple AI command translators (ai-shell, shell-gpt). The recommended approach is a four-layer architecture: a readline-based REPL that classifies input and routes it to either a system shell passthrough (via `bash -c`) or the Claude Agent SDK streaming query engine. The stack is deliberately minimal -- Node.js builtins for I/O, the official Claude Agent SDK for AI, and almost zero third-party dependencies.
+ClaudeShell v2 extends a well-architected 13-module TypeScript shell wrapper into a full power-user AI development environment. The research reveals a striking implementation advantage: 9 of 10 planned v2 features require zero new dependencies. The Claude Agent SDK already provides native session management (`resume`/`continue`/`fork`), model selection, permission control, and cost/token tracking via fields on `SDKResultMessage`. Node.js built-ins cover pipe detection (`process.stdin.isTTY`) and project file scanning (`node:fs`). The only new dependency is `node-pty` for interactive command PTY support, and it should be made an optional dependency to avoid native build friction. This means v2 is primarily an integration and wiring problem, not a new technology adoption problem.
 
-The critical architectural insight is that ClaudeShell must NOT try to be a shell -- it must delegate all shell syntax parsing to bash and only intercept a handful of builtins (`cd`, `export`, `exit`) and the `a` prefix. Projects that attempt to reimplement shell features inevitably fail. The Claude Agent SDK provides streaming, tool use, sessions, and permission control out of the box, so the product's value comes from tight integration between the shell REPL and the SDK, not from reimplementing any of those capabilities.
+The recommended approach is to extend the existing immutable `ShellState` pattern — adding `sessionId`, `currentModel`, and `permissionLevel` fields — and introduce 6 new focused modules (session, model, permissions, context, pipe, cost) that `ai.ts` composes via a single `buildQueryOptions()` function. The key architectural constraint is keeping `shell.ts` as a thin dispatcher. Slash commands (`/session`, `/model`, `/permissions`, `/cost`) provide the UX surface for all new features without changing the core `a` prefix workflow. The existing renderer's `isTTY` check already handles non-TTY output formatting for pipe support.
 
-The dominant risks are security (shell injection via LLM-generated commands -- with real CVEs in competing tools like Codex CLI and Gemini CLI), terminal state corruption (broken Ctrl+C, TTY state not restored on crash), and silent SDK error swallowing. All three must be addressed in Phase 1 architecture, not bolted on later. Secondary risks include context window exhaustion in long sessions, cost explosion without visibility, and the `a` prefix colliding with existing user commands. These are manageable with straightforward mitigations in Phases 2-3.
+The highest-risk area is session management, where silent failures are easy to introduce and hard to detect. Sessions must be tracked via explicit session IDs stored in `ShellState` (never relying on directory-based `continue: true`), and session metadata must be persisted to disk for crash recovery. The PTY feature carries the most implementation risk due to readline/PTY stdin conflicts and resource leak potential — the architecture research recommends `spawn({ stdio: 'inherit' })` satisfies the vast majority of interactive command needs without the native build complexity of node-pty. Ship PTY as optional and defer it to Phase 4.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is intentionally minimal, leaning heavily on Node.js builtins and the official Claude Agent SDK. Total production dependencies: 5 packages (claude-agent-sdk, picocolors, dotenv, marked, marked-terminal). Everything else is built-in.
+The v1 stack (TypeScript 6, Node.js 22+, `@anthropic-ai/claude-agent-sdk`, marked, marked-terminal, picocolors, tsdown, tsx, vitest) requires no changes for v2. All planned AI features — session persistence, model selection, permission modes, cost tracking — are already exposed by the SDK's `query()` options and `SDKResultMessage` fields. The SDK's `listSessions()`, `getSessionMessages()`, and `renameSession()` functions provide the full session management surface. Permission control uses the SDK's five-mode system (`default`, `dontAsk`, `acceptEdits`, `bypassPermissions`, `plan`) plus `canUseTool` callback and `allowedTools`/`disallowedTools` arrays.
 
 **Core technologies:**
-- **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`): AI agent loop with streaming, tool use, sessions, permissions -- this IS the product's core engine
-- **Node.js 22 LTS**: Runtime required by the SDK; provides readline, child_process, fs, and process APIs natively
-- **TypeScript 5.7+**: Type safety; SDK is TypeScript-native with shipped type definitions
-- **`node:readline/promises`**: REPL input, history, tab completion -- zero-dependency, right abstraction for a shell (not Ink, not node-pty)
-- **picocolors**: Terminal colors at 10x faster and 14x smaller than chalk
-- **tsdown**: TypeScript bundler (successor to unmaintained tsup), Rust-based via Rolldown
-- **vitest**: Testing framework with native TS/ESM support
+- `@anthropic-ai/claude-agent-sdk ^0.2.88`: AI backbone with native sessions, model selection, permissions, and cost data — zero new deps needed for any of these features
+- `node:readline/promises` (built-in): REPL input, already in use; must be paused/resumed atomically around any PTY usage
+- `node:fs` / `node:crypto` (built-ins): project context detection and session ID generation
+- `process.stdin.isTTY` / `process.stdout.isTTY` (built-ins): pipe detection, zero-dep
+- `node-pty ^1.1.0` (optional): PTY for interactive commands — native addon, must be `optionalDependencies` only
+
+**Critical version note:** Node.js >=22.0.0 is required (SDK requirement, already enforced in v1).
 
 ### Expected Features
 
 **Must have (table stakes):**
-- `a <prompt>` invokes Claude Agent SDK with streaming response
-- Standard command pass-through (all shell commands work via `bash -c`)
-- Working directory tracking (`cd` as intercepted builtin)
-- Command history with persistence
-- Signal handling (Ctrl+C cancels AI or child, never exits shell)
-- API key configuration with helpful error messages
-- Colored/formatted markdown output
-- File read/write via AI (SDK tools)
+- Session context persistence — users expect `a` commands to maintain context across turns; every competitor has this
+- `/new` command for fresh session — standard expectation across all AI CLI tools
+- Token/cost display — SDK provides exact USD cost; users expect visibility especially with Opus
+- Model selection (`/model`, `--model` flag, config default) — haiku/sonnet/opus triage is table stakes for power users
+- Pipe-friendly output — `cat error.log | a summarize` is the Unix integration killer feature; no competitor combines this with session context
 
 **Should have (differentiators):**
-- Single-character `a` prefix (shortest friction of any AI CLI)
-- Persistent conversation context via SDK sessions
-- Tool use visibility (show file reads, command runs inline)
-- Pipe-friendly output (`cat log.txt | a summarize`)
-- Automatic error recovery (command fails, AI diagnoses and offers fix)
-- Permission control for file edits and command execution
-- Configurable AI model (Haiku/Sonnet/Opus)
-- Token/cost display after responses
+- Automatic error recovery loop (diagnose + suggest fix + explicit approval) — no competitor does the full loop
+- Project context awareness (auto-inject package.json/Cargo.toml/CLAUDE.md into system prompt)
+- Permission control with sensible defaults (default to `acceptEdits`, not constant prompting)
+- Per-project `.claudeshell.json` config overrides — project-specific model, permissions, system prompt
+- Session cost accumulator with `/cost` command — no competitor tracks running session total well
+- Configurable AI prefix — some users want `ai` or `claude` instead of `a`
 
-**Defer (v2+):**
-- Multi-model provider support, GUI/TUI panels, plugin/theme system, cloud sync, team collaboration, autonomous agent mode, full bash compatibility, built-in code editor
+**Defer to v2.1+:**
+- PTY integration for interactive commands — most interactive commands work with `spawn({ stdio: 'inherit' })`; node-pty adds native build risk
+- Model shorthand prefixes (`a!` for haiku, `a*` for opus) — polish, not essential
+- Full conversation replay UI — terminal scrollback is sufficient; scope creep risk
+- Multi-model support (GPT, Gemini) — Claude SDK tool-use is the competitive moat; don't dilute it
+- AI-powered tab completion — readline integration complexity, latency concerns
 
 ### Architecture Approach
 
-Four-layer architecture: CLI entry point, REPL shell (readline + command router), two execution engines (passthrough for system commands, AI engine for Claude SDK queries), and a streaming renderer. Cross-cutting concerns (config, history, sessions, types) are isolated modules. The command router is a pure function that classifies input into five categories: AI, passthrough, builtin, slash command, or empty. All system commands go to `bash -c` as a single string -- never parse shell syntax.
+v2 extends the existing 13-module graph with 6 new single-responsibility modules (session.ts, model.ts, permissions.ts, context.ts, pipe.ts, cost.ts) that `ai.ts` composes via a `buildQueryOptions()` function. The `ShellState` interface gains three new readonly fields (`sessionId`, `currentModel`, `permissionLevel`), updated immutably via spread. The classify-then-dispatch pattern in `shell.ts` gains a new `slash` InputAction variant for `/` commands. `cli.ts` gets a pre-REPL pipe detection branch: if stdin is not a TTY and argv contains a prompt, run a single AI call and exit. The existing renderer's `isTTY` check already handles non-TTY output formatting.
 
 **Major components:**
-1. **shell.ts** (REPL loop) -- readline management, input classification, signal handling, prompt display
-2. **passthrough.ts** (shell engine) -- `spawn('bash', ['-c', cmd])` with inherited stdio; intercepts `cd`/`export`/`unset`
-3. **ai.ts** (AI engine) -- Claude SDK `query()` wrapper, streaming via async generator, abort via `query.interrupt()`
-4. **renderer.ts** (streaming output) -- state machine for text deltas, tool-use indicators, markdown formatting
-5. **config.ts / history.ts / session.ts** (persistence) -- file-based, local-first, XDG-compliant paths
+1. `session.ts` (NEW) — Session lifecycle: create ID, resolve resume options, list via SDK, clear; only the ID lives in ShellState; SDK handles all conversation storage; persists metadata to `~/.claudeshell/active-session.json` for crash recovery
+2. `model.ts` (NEW) — Alias resolution (`haiku` -> full model string), per-query `@alias` parsing from prompts, `/model` slash command handler
+3. `permissions.ts` (NEW) — Maps ClaudeShell levels (`strict`/`normal`/`permissive`/`plan`) to SDK permission modes; stores mode alongside session ID; warns on permission-mode mismatch during session resume
+4. `context.ts` (NEW) — Detects project type from marker files (package.json, Cargo.toml, go.mod, etc.), builds system prompt snippet, caches per-cwd, invalidates on `cd`
+5. `pipe.ts` (NEW) — Detects `!process.stdin.isTTY`, reads and frames piped stdin, triggers single-shot AI call via `cli.ts` before `runShell()` launches
+6. `cost.ts` (NEW) — Extracts `total_cost_usd` and token counts from `SDKResultMessage`, formats dim status line, accumulates running session total
 
 ### Critical Pitfalls
 
-1. **Shell injection via LLM output** -- Treat all LLM output as untrusted; use `execFile` (array args) not shell-mode execution; leverage SDK's built-in permission model; log all executed commands. Real CVEs exist in Codex CLI and Gemini CLI.
-2. **Trying to parse shell syntax** -- Never tokenize or parse pipes/redirects/globs. Pass entire command to `bash -c`. Only intercept `a` prefix and builtins. This is the #1 failure mode of shell wrapper projects.
-3. **Blocking REPL / broken Ctrl+C** -- Stream AI responses token-by-token; show feedback within 100ms; use AbortController for cancellation; never call `process.exit()` on SIGINT. Signal handling must be state-aware (AI active vs child active vs idle).
-4. **`cd` not changing directory** -- Intercept `cd` as builtin, call `process.chdir()`. Handle `cd -`, `cd ~`, no-args. Same pattern for `export`/`unset`.
-5. **TTY state corruption** -- Register cleanup on exit, SIGINT, SIGTERM, uncaughtException; prefer SIGTERM over SIGKILL for children; wrap raw mode in try/finally.
+1. **Silent session resume failure via CWD mismatch** — Never use `continue: true`; always track and pass explicit `sessionId` via `resume: sessionId`. When the user `cd`s, the session ID stays the same in `ShellState`. A visual session indicator in the prompt prevents silent loss. This is the most common `resume` pitfall in the SDK docs.
+
+2. **Pipe input destroying the interactive REPL** — Detect `process.stdin.isTTY === false` at `cli.ts` startup before `runShell()`. If not a TTY, switch to single-shot mode: read stdin, run one AI call, output plain text, exit. Never combine piped stdin with an interactive readline REPL — this caused crashes in Claude Code issues #1072 and #5925.
+
+3. **ANSI/markdown garbage in piped output** — When `process.stdout.isTTY` is false, disable all ANSI codes, disable markdown rendering, suppress spinners and tool indicators. Write status messages to stderr only. Test with `a hello | cat -v` — any `^[[` sequences mean the check is incomplete.
+
+4. **Permission escalation through session resume** — Store permission mode alongside session ID in `ShellState` AND in `~/.claudeshell/active-session.json`. When resuming, restore the original permission mode. Warn if current mode differs from the session's original mode before proceeding.
+
+5. **Context window explosion with long sessions** — Plan for compaction from the start. Show a token usage indicator (e.g., `[42K/200K]`). Trigger auto-compaction when usage exceeds 60% of the context window. The cost accumulator helps users notice when they are burning tokens on accumulated history.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, a 4-phase structure maps cleanly to dependency chains, risk profiles, and user value delivery:
 
-### Phase 1: Core Shell Foundation
-**Rationale:** A working shell REPL is the foundation everything depends on. It validates the readline architecture, signal handling, and passthrough engine before adding AI complexity. All 6 critical pitfalls have Phase 1 implications.
-**Delivers:** A functional shell that can replace a user's terminal session for basic use -- prompt, history, command execution, directory navigation.
-**Addresses:** Command pass-through, working directory tracking, command history, signal handling, exit/quit
-**Avoids:** Shell syntax parsing (Pitfall 2), cd desync (Pitfall 4), TTY corruption (Pitfall 5), broken Ctrl+C (Pitfall 3)
+### Phase 1: Session & Visibility
+**Rationale:** P0 features; all rely on well-documented SDK capabilities with zero new dependencies. These transform ClaudeShell from stateless to stateful and give users cost visibility. They are the prerequisite for every other v2 feature — permission modes must be stored with sessions, project context is injected per-query, and pipe mode bypasses the session REPL entirely.
+**Delivers:** Session persistence across `a` commands; `/new` command; token/cost display after each response; model selection via config, `/model` command, and `--model` flag; session metadata persisted for crash recovery.
+**Addresses:** Table-stakes features (session context, `/new`, cost display, model selection) from FEATURES.md
+**Avoids:** Silent session resume failure (Pitfall 1) — must use explicit session IDs from day one; session metadata loss on crash (Pitfall 10)
 
-### Phase 2: AI Integration
-**Rationale:** The core value proposition. Depends on a stable REPL from Phase 1. The Claude Agent SDK provides streaming, tool use, and sessions -- the work is wiring it into the command router and building the streaming renderer.
-**Delivers:** `a <prompt>` triggers Claude AI with streaming output, cancellation, error handling, and basic markdown formatting.
-**Uses:** Claude Agent SDK (`query()`, streaming, `interrupt()`), picocolors, marked-terminal
-**Implements:** ai.ts (AI engine), renderer.ts (streaming output), command router AI path
-**Avoids:** Shell injection (Pitfall 1 -- command validation layer), silent errors (Pitfall 6), blocking REPL (Pitfall 3)
+### Phase 2: Unix Integration
+**Rationale:** Pipe support is the single most differentiating feature for shell power users and makes ClaudeShell a genuine Unix citizen. Error recovery builds on the existing `lastError` infrastructure in `ShellState`. Configurable prefix is trivial but completes the customization story. All three are medium-complexity with well-understood, zero-new-dependency implementation paths.
+**Delivers:** `cat file | a summarize` pipe workflow via single-shot non-interactive mode; error recovery loop (diagnose, suggest fix, require explicit approval, cap at 3 attempts); configurable `ai_prefix` in config.
+**Uses:** `process.stdin.isTTY` / `process.stdout.isTTY` (Node.js built-ins); existing `lastError` in `ShellState`; existing classifier in `classify.ts`
+**Avoids:** Pipe destroying REPL (Pitfall 3); ANSI codes leaking to pipe output (Pitfall 8); autonomous fix execution without approval (anti-feature from FEATURES.md)
 
-### Phase 3: Sessions, History, and Context
-**Rationale:** Quality-of-life features that depend on both engines working. Session support enables the "persistent conversation" differentiator. History unification and context management prevent the context exhaustion pitfall.
-**Delivers:** Conversation continuity across `a` commands, slash commands (/help, /session, /resume, /history), token/cost display, context management.
-**Addresses:** Persistent conversation context, tool use visibility, token/cost display, slash commands
-**Avoids:** Context window exhaustion (Pitfall 7), cost explosion (Pitfall 8), history corruption (Pitfall 10)
+### Phase 3: Context & Control
+**Rationale:** Permission control and project context make ClaudeShell feel "project-aware" and safe. They depend on Phase 1 (session state must exist before permission modes can be stored with sessions) and benefit from Phase 2 being stable (users understand the tool before configuring it). These three features together close the gap with Claude Code's project-awareness story.
+**Delivers:** SDK permission modes via `/permissions` command and config (defaulting to `acceptEdits`); project type auto-detection injected into system prompt; CLAUDE.md loading via SDK `settingSources`; per-project `.claudeshell.json` config overrides; session cost accumulator with `/cost` command.
+**Implements:** context.ts, permissions.ts, config.ts project-level layering
+**Avoids:** Permission UX blocking flow (Pitfall 7) — default to `acceptEdits`, not constant prompting; permission escalation on resume (Pitfall 4); synchronous project detection on every AI call (Anti-Pattern 4 — cache per-cwd)
 
-### Phase 4: Polish and Power Features
-**Rationale:** Deferred features that add native compilation dependencies (node-pty) or require all prior phases to be stable. These are competitive differentiators, not table stakes.
-**Delivers:** Interactive command support (vim, less, ssh via node-pty), pipe-friendly output, permission control, project context awareness, model selection, error recovery loop, configurable AI prefix.
-**Addresses:** Pipe-friendly output, permission control, project context awareness, model selection, smart typo correction, automatic error recovery
-**Avoids:** Prefix collision (Pitfall 11), startup time (Pitfall 13), TTY detection issues (Pitfall 14)
+### Phase 4: PTY & Polish
+**Rationale:** PTY integration has the highest risk (readline/PTY stdin conflict, resource leaks, native build failures) and benefits the fewest users — `spawn({ stdio: 'inherit' })` already satisfies the vast majority of interactive command needs. Defer until the rest of v2 is stable. Model shorthands and session cleanup are low-effort polish.
+**Delivers:** PTY support for edge-case interactive programs (vim, ssh) via `node-pty` as `optionalDependency` with graceful fallback; model shorthand prefixes (`a!`, `a*`); session file rotation/cleanup command.
+**Avoids:** PTY zombie leaks (Pitfall 5); readline/PTY stdin conflict (Pitfall 2); Ctrl+C contract breakage (Pitfall 9); node-pty build failures (Pitfall 11)
 
 ### Phase Ordering Rationale
 
-- **Dependencies flow downward:** Each phase depends on the prior phase being stable. AI integration cannot be tested without a working REPL. Sessions cannot work without AI. Polish cannot be evaluated without the full pipeline.
-- **Risk front-loading:** All 6 critical pitfalls have Phase 1 or Phase 2 implications. The architecture decisions that prevent rewrites (bash delegation, signal handling, streaming) are locked in early.
-- **Incremental value:** Phase 1 alone is a usable (if unremarkable) shell. Phase 2 delivers the core differentiator. Phase 3 makes it sticky. Phase 4 makes it delightful.
-- **Native dependency isolation:** node-pty (the only native compilation dependency) is deferred to Phase 4, keeping Phases 1-3 pure JavaScript with zero node-gyp risk.
+- Phase 1 before all others: session ID is the shared state primitive that permissions, context, and cost all attach to — it must be established and crash-safe before dependent features are built
+- Pipe support (Phase 2) before project context (Phase 3): pipe is the most-requested missing feature, is entirely independent of stateful features, and completing it builds user confidence before tackling config layering complexity
+- Permission control and project context (Phase 3) together: they share the same config layering infrastructure (`.claudeshell.json` overrides) and project-specific permission modes are the primary use case for per-project config
+- PTY last: highest risk, lowest user coverage, architectural complexity that could destabilize the clean REPL loop if introduced too early; `spawn({ stdio: 'inherit' })` is the recommended default and should be implemented first in Phase 3 passthrough extension
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2:** Claude Agent SDK streaming API -- the `SDKMessage` types and `stream_event` subtypes need hands-on exploration. The SDK is young (v0.2.x) and API surface may shift. A V2 preview interface with `send()` and `stream()` patterns is also available and worth evaluating.
-- **Phase 4:** node-pty integration for interactive commands -- detecting which commands need a PTY vs spawn is heuristic-based and needs experimentation.
-- **Phase 4:** Pipe-friendly output -- detecting non-TTY stdout and adjusting AI output format needs testing across terminal emulators and piping scenarios.
+- **Phase 1 (session management):** Verify exact `SDKResultMessage.session_id` field name and `resume` option behavior against the installed SDK version `0.2.88` — confirm from `node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts` before writing session.ts
+- **Phase 1 (cost tracking):** The `SDKResultMessage` usage shape (`total_cost_usd`, `modelUsage`, `usage.input_tokens`) has MEDIUM confidence — verify exact field names from SDK type definitions
+- **Phase 2 (pipe support):** Test the single-shot non-interactive path with binary data and large files (>50KB) — edge cases around encoding and truncation need empirical validation before shipping
+- **Phase 4 (PTY packaging):** Research `node-pty-prebuilt-multiarch` as an alternative that ships prebuilt binaries before committing to raw node-pty compilation
 
 Phases with standard patterns (skip research-phase):
-- **Phase 1:** REPL with readline, child_process spawn, process.chdir -- all extremely well-documented Node.js patterns.
-- **Phase 3:** File-based history persistence, SDK session resume -- straightforward implementation with clear SDK docs.
+- **Phase 1 (model selection):** SDK `query()` `model` option is straightforward; alias-to-full-string mapping is mechanical
+- **Phase 2 (configurable prefix):** Single classifier change, fully understood
+- **Phase 3 (per-project config):** JSON merge with object spread is the established pattern; no new concepts
+- **Phase 3 (project detection):** `fs.existsSync` checks on known marker files; no AST parsing needed
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies are official, well-documented, or Node.js builtins. Claude Agent SDK is the only risk (v0.2.x, young). |
-| Features | HIGH | Competitive landscape is clear. Table stakes are well-defined by existing tools (Warp, aichat, ai-shell). |
-| Architecture | HIGH | Four-layer pattern validated by academic research (OpenDev paper) and real-world tools. Component boundaries are clean. |
-| Pitfalls | HIGH | Critical pitfalls backed by real CVEs (Trail of Bits, Checkpoint, Cyera), Node.js issue tracker, and production failures in competing tools. |
+| Stack | HIGH | All core additions verified against official Claude Agent SDK docs; node-pty is well-documented; all alternatives considered and ruled out with rationale |
+| Features | HIGH | SDK-native features (sessions, model, cost, permissions) verified from official source; pipe and PTY patterns verified from Claude Code GitHub issues and competitor tool analysis |
+| Architecture | HIGH | Based on direct analysis of all 13 existing source files plus official SDK TypeScript reference; module boundaries derived from existing codebase patterns |
+| Pitfalls | HIGH | Critical pitfalls sourced from official SDK docs, real GitHub issues (Claude Code #1072, #5925; Node.js #5574), production LLM context research (Chroma), and security CVEs (Trail of Bits) |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Claude Agent SDK version stability:** The SDK is at v0.2.x. API surface could change. Pin exact versions and test against SDK updates before upgrading. A V2 preview interface exists -- evaluate during Phase 2 planning.
-- **`a` prefix collision frequency:** Research identified the risk but didn't quantify how common `a` aliases are in practice. Check on first launch and make prefix configurable from day one.
-- **Windows support:** Research assumed macOS/Linux. `bash -c` passthrough won't work on Windows without WSL. Decide early whether to support Windows natively or require WSL.
-- **SDK cost management APIs:** Research mentions built-in cost management features but specifics are unclear. Investigate during Phase 2-3 planning.
-- **Multi-line input UX:** How to handle multi-line prompts to `a` (e.g., pasting code) needs design during Phase 3.
-- **Login shell compatibility:** Making ClaudeShell usable as a login shell (set in `/etc/shells`) requires testing profile/rc file sourcing -- defer to Phase 4.
+- **cost.ts exact field names:** The `SDKResultMessage` usage shape needs confirmation against the installed SDK's type definitions before implementing cost.ts. Architecture researcher rated this MEDIUM confidence.
+- **Session metadata file format:** The `~/.claudeshell/active-session.json` crash recovery format is not specified by the SDK and must be designed. Recommended minimal shape: `{ sessionId, permissionMode, createdAt, lastActiveAt }`.
+- **Context window limits per model:** When implementing context explosion warnings (Pitfall 6), per-model context limits should be sourced from `query.supportedModels()` or hardcoded from Anthropic documentation at implementation time.
+- **PTY vs spawn empirical validation:** The architecture research recommends `spawn({ stdio: 'inherit' })` over node-pty. Validate against vim, ssh, less, htop, and python REPL before finalizing Phase 4 scope — if spawn handles all common cases, node-pty may be unnecessary entirely.
+- **`a` prefix collision on fresh installs:** v1 research identified this risk; v2 should surface a configurable prefix prominently in onboarding to prevent silent command shadowing.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Claude Agent SDK - npm](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) -- SDK capabilities, API surface
-- [Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) -- Full API docs
-- [Agent SDK Streaming Output](https://platform.claude.com/docs/en/agent-sdk/streaming-output) -- Streaming patterns
-- [Agent SDK Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) -- Permission modes
-- [Trail of Bits: Prompt Injection to RCE](https://blog.trailofbits.com/2025/10/22/prompt-injection-to-rce-in-ai-agents/) -- Security pitfalls
-- [Checkpoint: Codex CLI Command Injection](https://research.checkpoint.com/2025/openai-codex-cli-command-injection-vulnerability/) -- Security CVEs
-- [Cyera: Gemini CLI Injection](https://www.cyera.com/research/cyera-research-labs-discloses-command-prompt-injection-vulnerabilities-in-gemini-cli) -- Security CVEs
-- [Node.js readline](https://nodejs.org/api/readline.html) -- REPL patterns
-- [Node.js child_process](https://nodejs.org/api/child_process.html) -- Process spawning
-- [Claude Code Troubleshooting Docs](https://code.claude.com/docs/en/troubleshooting) -- SDK error patterns
+- [Claude Agent SDK Sessions](https://platform.claude.com/docs/en/agent-sdk/sessions) — session resume, continue, fork, listSessions, getSessionMessages, renameSession
+- [Claude Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) — Options type, Query object, ResultMessage, ModelUsage, supportedModels, setModel
+- [Claude Agent SDK Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) — 5 permission modes, allowedTools, disallowedTools, canUseTool callback, bypassPermissions warning
+- [Node.js TTY docs](https://nodejs.org/api/tty.html) — isTTY for pipe detection
+- [Node.js readline/promises](https://nodejs.org/api/readline.html) — REPL input, pause/resume lifecycle
+- [node-pty GitHub](https://github.com/microsoft/node-pty) — PTY bindings, resource management, platform support, prebuilt options
+- [Claude Code: Pipe stdin crash #1072](https://github.com/anthropics/claude-code/issues/1072) — pipe/REPL conflict pattern
+- [Claude Code: Raw mode pipe crash #5925](https://github.com/anthropics/claude-code/issues/5925) — readline raw mode with piped stdin
+- [Node.js: Multiple stdin readers issue #5574](https://github.com/nodejs/node/issues/5574) — keystroke loss with readline + PTY simultaneously
+- [Chroma Research: Context Rot](https://research.trychroma.com/context-rot) — context window degradation in long sessions
+- [Trail of Bits: Prompt injection to RCE](https://blog.trailofbits.com/2025/10/22/prompt-injection-to-rce-in-ai-agents/) — permission model security implications
 
 ### Secondary (MEDIUM confidence)
-- [OpenDev Terminal Agent Architecture (arXiv 2603.05344)](https://arxiv.org/html/2603.05344v1) -- Four-layer AI terminal agent design
-- [aichat](https://github.com/sigoden/aichat) -- Competitor reference architecture (29k+ stars)
-- [ai-shell](https://github.com/BuilderIO/ai-shell) -- Competitor feature set
-- [Warp](https://www.warp.dev/) -- Competitor: full terminal emulator approach
-- [picocolors](https://github.com/alexeyraspopov/picocolors) -- Performance benchmarks
-- [tsdown](https://tsdown.dev/guide/) -- Bundler docs
-- [Securing CLI Based AI Agents](https://medium.com/@visrow/securing-cli-based-ai-agent-c36429e88783) -- Security patterns
+- [aichat](https://github.com/sigoden/aichat) — competitor pipe/session patterns; first-class stdin support
+- [Claude Agent SDK Cost Tracking](https://platform.claude.com/docs/en/agent-sdk/cost-tracking) — `total_cost_usd`, `modelUsage`, per-step token tracking
+- [Gemini CLI Context Management](https://datalakehousehub.com/blog/2026-03-context-management-gemini-cli/) — hierarchical context, GEMINI.md pattern
+- [Claude Code Session Management](https://stevekinney.com/courses/ai-development/claude-code-session-management) — session persistence patterns
+- [LLM Chat History Summarization (mem0.ai)](https://mem0.ai/blog/llm-chat-history-summarization-guide-2025) — context compaction strategies
+- [AI Agent Permission Models (AgentNode)](https://agentnode.net/blog/ai-agent-permission-models-least-privilege) — least-privilege patterns for tool-using agents
+- [Anthropic Claude Code Sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing) — permission and sandbox architecture reference
 
 ### Tertiary (LOW confidence)
-- [Kilo-Org/kilocode #1224](https://github.com/Kilo-Org/kilocode/issues/1224) -- Context window exhaustion pattern (single project, may not generalize)
+- [ctx CLI](https://dev.to/lakshmisravyavedantham/i-built-a-cli-that-gives-any-ai-instant-context-about-your-project-3ig8) — project context detection patterns; single source, validate during Phase 3 planning
 
 ---
 *Research completed: 2026-03-31*

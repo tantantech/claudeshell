@@ -1,164 +1,301 @@
 # Technology Stack
 
-**Project:** ClaudeShell - AI-native interactive terminal shell
+**Project:** ClaudeShell v2 -- Sessions & Power Features
 **Researched:** 2026-03-31
 
-## Recommended Stack
+## Current Stack (v1, validated)
 
-### Core AI Engine
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| TypeScript | ^6.0.2 | Language |
+| Node.js | >=22.0.0 | Runtime |
+| @anthropic-ai/claude-agent-sdk | ^0.2.88 | AI backbone |
+| marked + marked-terminal | ^15 / ^7.3 | Markdown rendering |
+| picocolors | ^1.1.1 | Terminal colors |
+| tsdown | ^0.21.7 | Bundler |
+| tsx | ^4.21.0 | Dev runner |
+| vitest | ^4.1.2 | Tests |
+| node:readline/promises | built-in | REPL input |
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `@anthropic-ai/claude-agent-sdk` | ^0.2.x | AI agent loop, tool use, streaming | Official SDK that powers Claude Code itself. Provides `query()` async generator for streaming, built-in tools (Read, Edit, Bash, Glob, Grep), session management, and permission modes. This IS the product's core -- everything else is plumbing. | HIGH |
+## Stack Additions for v2
 
-**Key API surface:**
+### Sessions -- NO new dependency needed
+
+**Confidence: HIGH** (verified via official Claude Agent SDK docs)
+
+The Claude Agent SDK already provides everything for session management. No new library required.
+
+| SDK Feature | How ClaudeShell Uses It | API |
+|-------------|------------------------|-----|
+| `continue: true` | Continue most recent session in cwd | `query({ options: { continue: true } })` |
+| `resume: sessionId` | Resume a specific past session by ID | `query({ options: { resume: id } })` |
+| `forkSession: true` | Branch from a session without losing original | `query({ options: { resume: id, forkSession: true } })` |
+| `persistSession: false` | Ephemeral one-shot queries (no disk write) | `query({ options: { persistSession: false } })` |
+| `listSessions()` | List past sessions for a project directory | `listSessions({ dir: cwd, limit: N })` |
+| `getSessionMessages()` | Read history from a past session transcript | `getSessionMessages(sessionId, { dir })` |
+| `session_id` on ResultMessage | Capture session ID for resume/fork | Available on every `SDKResultMessage` |
+
+**Implementation pattern:** Store the current `sessionId` in `ShellState`. On subsequent `a` commands, pass `continue: true` or `resume: sessionId`. Add a `/new` slash command to start a fresh session (just omit continue/resume). Add `/sessions` to list past sessions via `listSessions()`.
+
+Source: [Claude Agent SDK Sessions docs](https://platform.claude.com/docs/en/agent-sdk/sessions)
+
+### Model Selection -- NO new dependency needed
+
+**Confidence: HIGH** (verified via official SDK reference)
+
+The SDK `Options` type accepts a `model` field (string). The `Query` object also exposes `setModel()` for mid-session changes and `supportedModels()` to list available models.
+
+| SDK Feature | Use Case |
+|-------------|----------|
+| `options.model` | Set model at query time (`"claude-sonnet-4-20250514"`, etc.) |
+| `query.supportedModels()` | Discover available models dynamically |
+| `query.setModel(model)` | Change model mid-session (streaming input mode) |
+| `options.fallbackModel` | Automatic fallback if primary model fails |
+
+**Implementation pattern:** Add `model` field to config.json. Support `a --haiku`, `a --opus`, `a --sonnet` prefix flags. Map shorthand names to full model strings. Use `supportedModels()` once at startup to validate.
+
+Source: [Claude Agent SDK TypeScript reference](https://platform.claude.com/docs/en/agent-sdk/typescript)
+
+### Token/Cost Display -- NO new dependency needed
+
+**Confidence: HIGH** (verified via official SDK reference)
+
+`SDKResultMessage` already contains all cost/token data:
+
 ```typescript
-import { query } from "@anthropic-ai/claude-agent-sdk";
-
-for await (const message of query({
-  prompt: "user input here",
-  options: {
-    allowedTools: ["Read", "Edit", "Bash", "Glob", "Grep"],
-    permissionMode: "acceptEdits",
-    systemPrompt: "You are ClaudeShell...",
-    // Sessions for multi-turn context
-  }
-})) {
-  // Stream messages to terminal
+{
+  total_cost_usd: number;
+  duration_ms: number;
+  num_turns: number;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens: number;
+    cache_creation_input_tokens: number;
+  };
+  modelUsage: {
+    [modelName: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens: number;
+      cacheCreationInputTokens: number;
+      costUSD: number;
+    }
+  };
 }
 ```
 
-**Prerequisites:** Node.js 18+, `ANTHROPIC_API_KEY` env var (also supports Bedrock/Vertex/Azure auth).
+**Implementation pattern:** After the `for await` loop completes, check for `message.type === "result"` and render a summary line like `[sonnet | 1.2k in, 890 out | $0.0043 | 2.1s]` using picocolors (already a dependency).
 
-### Runtime & Language
+### Permission Control -- NO new dependency needed
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Node.js | 22 LTS | Runtime | Required by Claude Agent SDK. v22 is current LTS with native ESM, top-level await, and stable `node:readline` APIs. | HIGH |
-| TypeScript | ^5.7 | Type safety | Claude Agent SDK is TypeScript-native. Strict mode catches bugs at compile time. The SDK ships its own type definitions. | HIGH |
+**Confidence: HIGH** (verified via official SDK permissions docs)
 
-### Terminal I/O & REPL
+The SDK provides five permission modes and declarative allow/deny rules:
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:readline/promises` | (built-in) | Line input, history, tab completion | Built into Node.js, zero dependencies. Provides `createInterface()` with prompt, history, and completer support. For a shell REPL, this is the right abstraction -- lightweight, no framework overhead. | HIGH |
-| `node:child_process` | (built-in) | Execute pass-through shell commands | `spawn()` with `{ stdio: 'inherit' }` for transparent command execution. Handles pipes, signals, exit codes natively. | HIGH |
+| Mode | Behavior | When to Use |
+|------|----------|-------------|
+| `"default"` | Falls through to `canUseTool` callback | Interactive approval |
+| `"dontAsk"` | Deny anything not in `allowedTools` | Locked-down headless mode |
+| `"acceptEdits"` | Auto-approve file edits, deny bash unless allowed | Trust edits, control execution |
+| `"bypassPermissions"` | Approve everything (dangerous) | Fully trusted environments |
+| `"plan"` | No tool execution at all | Read-only analysis mode |
 
-**Why NOT Ink/React:** Ink is excellent for structured CLI UIs (forms, spinners, layouts). ClaudeShell is a *shell* -- it needs raw line-by-line I/O, not a component tree. Ink would add 50+ dependencies for something `readline` does natively. The AI output is just streamed text, not interactive widgets.
+Additionally:
+- `allowedTools: string[]` -- pre-approve specific tools
+- `disallowedTools: string[]` -- always deny specific tools (overrides everything)
+- `canUseTool` callback -- runtime approval function
 
-**Why NOT node-pty:** node-pty is for building terminal *emulators* (like VS Code's integrated terminal). ClaudeShell runs *inside* a terminal -- it doesn't need to emulate one. node-pty adds native compilation complexity (node-gyp) for zero benefit here.
+**Implementation pattern:** Add `permission_mode` and `allowed_tools` / `disallowed_tools` arrays to config.json. Default to `"acceptEdits"` (current behavior). Expose via `/permissions` command to cycle modes. Support per-project overrides.
 
-**Why NOT Inquirer.js:** Inquirer is for structured prompts (select from list, confirm yes/no). ClaudeShell is a free-form REPL. Inquirer would fight the interaction model.
+Source: [Claude Agent SDK Permissions docs](https://platform.claude.com/docs/en/agent-sdk/permissions)
 
-### Terminal Output & Formatting
+### Pipe-Friendly AI Output -- NO new dependency needed
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `picocolors` | ^1.1 | ANSI color output | 10x faster than chalk, 14x smaller (7KB vs 101KB), zero dependencies. For a shell that renders every line of AI output, load time and per-call performance matter. | HIGH |
-| `marked` + `marked-terminal` | ^15 / ^7 | Markdown rendering in terminal | Claude responses contain markdown. `marked-terminal` renders it with proper formatting (bold, code blocks, lists) directly in the terminal. Battle-tested combo. | MEDIUM |
+**Confidence: HIGH** (Node.js built-in)
 
-**Why NOT chalk:** Chalk is 101KB with slower load time (6ms vs 0.5ms). In a shell that starts on every terminal session, startup speed matters. Picocolors has the same API surface we need (bold, dim, red, green, cyan).
+Pipe detection uses `process.stdin.isTTY` and `process.stdout.isTTY` (Node.js built-in). The codebase already checks `process.stdout.isTTY` in `createRenderer()`.
 
-### Build & Development
+**Implementation pattern:**
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `tsdown` | ^0.14 | TypeScript bundler | Spiritual successor to tsup (which is no longer maintained). Powered by Rolldown (Rust-based). Zero-config, produces ESM + CJS, generates .d.ts. For a CLI tool, single-file output with bundled deps is ideal. | MEDIUM |
-| `tsx` | ^4.x | Dev-time TypeScript execution | Run .ts files directly during development without a build step. Used by the Claude Agent SDK quickstart itself. Fast (esbuild-based). | HIGH |
-| `vitest` | ^3.x | Testing | Native TypeScript support, ESM-first, fast watch mode. The standard for new TS projects in 2025-2026. Jest requires more config for ESM/TS. | HIGH |
+1. **Detect pipe input:** `!process.stdin.isTTY` means stdin is piped. Read all stdin chunks, concatenate, then pass as context to the AI prompt.
+2. **Plain output for pipes:** When `!process.stdout.isTTY`, skip markdown rendering (already handled), suppress "Thinking..." indicator, and write only the final text result to stdout (no tool notifications, no color).
+3. **Usage:** `cat log.txt | claudeshell "summarize this"` -- detect non-TTY stdin, read piped data, prepend to prompt.
 
-**Why NOT tsup:** tsup is no longer actively maintained. The maintainer recommends tsdown as the successor. Migrate now rather than accumulate tech debt.
+Changes needed:
+- `cli.ts`: Check `process.stdin.isTTY`. If false, read stdin, pass as prompt context, and run single-shot (no REPL loop).
+- `renderer.ts`: Already has `isTTY` flag. Extend to suppress all decoration when piping.
+- `ai.ts`: Accept optional `stdinContent` parameter to prepend to prompt.
 
-**Why NOT esbuild directly:** esbuild is the engine, not the tool. tsdown/tsup wrap it with .d.ts generation, watch mode, and sensible defaults. Direct esbuild config is unnecessary boilerplate for a CLI project.
+### PTY Support (Interactive Commands) -- NEW dependency: `node-pty`
 
-### CLI Packaging & Distribution
+**Confidence: MEDIUM** (node-pty is the standard but has native addon friction)
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| npm `bin` field | (package.json) | CLI entry point | Standard npm mechanism. `"bin": { "claudeshell": "./dist/cli.js" }` makes the shell available as a command after `npm install -g`. | HIGH |
-| `#!/usr/bin/env node` | - | Shebang for CLI | Standard Node.js CLI convention. Required for the `bin` field to work. | HIGH |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `node-pty` | ^1.1.0 | Pseudo-terminal for interactive commands | Only viable option for Node.js PTY; used by VS Code, Hyper, and 1000+ npm packages |
 
-### Configuration & Persistence
+**Why node-pty:** Interactive commands (vim, ssh, less, htop) require a pseudo-terminal that handles raw mode, screen clearing, cursor positioning, and signal forwarding. Node's `child_process.spawn` with `stdio: 'inherit'` does NOT provide a proper PTY -- it inherits the parent's terminal but doesn't allocate a new one, so programs that call `isatty()` or use `tcgetattr()` may misbehave.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:fs/promises` | (built-in) | Config file I/O | Read/write JSON config files. No library needed for simple config. | HIGH |
-| XDG Base Directory | (convention) | Config location | `~/.config/claudeshell/config.json` on Linux, `~/Library/Application Support/claudeshell/` on macOS. Use `env.XDG_CONFIG_HOME` with fallback. | HIGH |
-| `dotenv` | ^16.x | Environment variable loading | Load `.env` files for API keys. Claude Agent SDK expects `ANTHROPIC_API_KEY` in env. | HIGH |
-| `node:fs` (append) | (built-in) | Command history | Append-only history file at `~/.claudeshell_history`. readline has built-in history support -- just persist it to disk. | HIGH |
+**Why not alternatives:**
+- `pty.node` -- abandoned (last publish 5 years ago)
+- `node-pty-prebuilt` -- stale fork, install issues
+- `@lydell/node-pty` -- thin wrapper around node-pty, not independent
+- Raw Node.js `child_process` -- no PTY allocation, interactive programs break
 
-### Process & Signal Management
+**Installation concern:** node-pty is a native addon requiring compilation (node-gyp + C++ toolchain). This adds friction to `npm install -g claudeshell`. Mitigations:
+1. Make `node-pty` an **optional dependency** (`optionalDependencies` in package.json)
+2. Fall back to `spawn({ stdio: 'inherit' })` when node-pty is unavailable
+3. Document build prerequisites (Xcode CLI tools on macOS, build-essential on Linux)
+4. Recent PR (#809) adds prebuild support, reducing compilation needs
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| `node:process` | (built-in) | Signal handling, exit codes | Handle SIGINT (Ctrl+C) gracefully during AI queries, SIGTSTP (Ctrl+Z) for backgrounding. Critical for shell UX. | HIGH |
+**Implementation pattern:**
+1. Detect interactive commands heuristically (vim, nano, ssh, less, top, htop, man)
+2. If node-pty available, spawn via `pty.spawn()` with full PTY
+3. If not available, fall back to current `spawn({ stdio: 'inherit' })` with a warning
+4. Forward SIGWINCH for terminal resize
 
-## Supporting Libraries (use when needed)
+Source: [node-pty GitHub](https://github.com/microsoft/node-pty)
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `zod` | ^3.23 | Input validation | Validating config files, CLI arguments. Already a dependency of Claude Agent SDK. | 
-| `ora` | ^8.x | Spinner/loading indicator | Show "thinking..." while waiting for first AI token. Small, focused library. |
-| `which` | ^5.x | Command existence checking | Verify commands exist before pass-through execution. Optional -- can use `child_process` directly. |
-| `glob` | ^11.x | File glob patterns | Only if implementing custom tab completion for file paths beyond readline defaults. |
+### Project Context Awareness -- NO new dependency needed
+
+**Confidence: HIGH**
+
+Detection of project files (package.json, Cargo.toml, pyproject.toml, go.mod, etc.) is trivial filesystem work using `node:fs`. No library needed.
+
+**Implementation pattern:**
+1. On shell startup (and after `cd`), scan cwd for known project files
+2. Build a context string: `"Node.js project (package.json), using TypeScript, vitest, React"`
+3. Inject into the system prompt passed to `query()`
+4. Optionally read relevant sections (name, scripts, dependencies keys)
+
+Files to detect and extract from:
+
+| File | Ecosystem | What to Extract |
+|------|-----------|-----------------|
+| `package.json` | Node.js | name, scripts keys, key deps |
+| `Cargo.toml` | Rust | package name |
+| `pyproject.toml` / `requirements.txt` | Python | project name, key deps |
+| `go.mod` | Go | module name |
+| `Gemfile` | Ruby | -- |
+| `pom.xml` / `build.gradle` | Java | -- |
+| `Makefile` | C/C++ | -- |
+| `.git/` | Any | current branch name |
+| `CLAUDE.md` | Claude projects | full content for system prompt |
+
+### Per-Project Configuration -- NO new dependency needed
+
+**Confidence: HIGH**
+
+**Implementation pattern:** Look for `.claudeshell/config.json` in cwd (and parent dirs up to git root or home). Merge with global `~/.claudeshell/config.json` using spread (project overrides global). Same `ClaudeShellConfig` type, extended with v2 fields.
+
+Config resolution order (last wins):
+1. Built-in defaults
+2. `~/.claudeshell/config.json` (global)
+3. `<project-root>/.claudeshell/config.json` (project)
+4. Environment variables (`ANTHROPIC_API_KEY`, etc.)
+5. Command-line flags (`a --haiku`)
+
+### Configurable AI Command Prefix -- NO new dependency needed
+
+**Confidence: HIGH**
+
+Currently hardcoded as `"a"` in `classify.ts`. Make it configurable via config.json.
+
+```typescript
+// config.json
+{ "ai_prefix": "ai" }
+
+// classify.ts -- read prefix from config instead of hardcoded "a"
+```
+
+### Error Recovery -- NO new dependency needed
+
+**Confidence: HIGH**
+
+Already partially implemented (`lastError` in ShellState, `a explain` / `a why`). Extend to:
+1. Auto-detect failed commands (exit code !== 0) -- already done
+2. Offer to diagnose: `Command failed. Type 'a fix' to auto-fix.` -- partially done
+3. `a fix` sends stderr + command to AI with "fix this" prompt -- new
+4. AI can execute the fix directly (with permission mode controlling safety)
+
+### Fresh Context Slash Command -- NO new dependency needed
+
+**Confidence: HIGH**
+
+`/new` command clears the current session ID from ShellState, so the next `a` command creates a fresh session (no `continue` or `resume` passed to SDK).
+
+## Recommended Stack (v2 complete)
+
+### Core (unchanged)
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| TypeScript | ^6.0.2 | Language | Matches SDK |
+| Node.js | >=22.0.0 | Runtime | SDK requirement |
+| @anthropic-ai/claude-agent-sdk | ^0.2.88 | AI backbone (sessions, models, permissions, costs) | All v2 AI features are SDK-native |
+| marked | ^15.0.12 | Markdown parsing | Existing |
+| marked-terminal | ^7.3.0 | Terminal markdown | Existing |
+| picocolors | ^1.1.1 | Terminal colors | Existing |
+
+### New (optional)
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| node-pty | ^1.1.0 | PTY for interactive commands | Only option for proper PTY; make it optionalDependency |
+
+### Dev (unchanged)
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| tsdown | ^0.21.7 | Bundler | Existing |
+| tsx | ^4.21.0 | Dev runner | Existing |
+| vitest | ^4.1.2 | Tests | Existing |
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| AI SDK | Claude Agent SDK | Raw Anthropic API (`@anthropic-ai/sdk`) | Agent SDK provides the full tool-use loop, file access, command execution. Raw API would require reimplementing all of that. |
-| REPL | `node:readline/promises` | Ink (React for CLI) | Ink is a UI framework; we need a REPL. Wrong abstraction level. |
-| REPL | `node:readline/promises` | `node:repl` module | `node:repl` is designed for JavaScript REPLs with eval. We need a command shell, not a JS evaluator. |
-| Terminal | Direct terminal (run inside existing) | node-pty | node-pty emulates terminals. We run inside one. Adds native compilation burden. |
-| Colors | picocolors | chalk | Slower load, larger bundle. No features we need that picocolors lacks. |
-| Colors | picocolors | ansis | ansis is excellent but picocolors has wider adoption and is sufficient for our needs. |
-| Bundler | tsdown | tsup | tsup is unmaintained. tsdown is the official successor. |
-| Bundler | tsdown | Rollup | More config, less TypeScript-focused. tsdown wraps Rolldown with better defaults. |
-| Testing | vitest | jest | Jest needs extra config for ESM + TypeScript. Vitest works out of the box. |
-| Shell scripting | `node:child_process` | Google zx | zx is for shell scripts, not for building shells. We need fine-grained control over process spawning. |
-| Config | XDG + JSON | cosmiconfig | Over-engineered for a single config file. We know exactly where config lives. |
+| Sessions | SDK built-in `continue`/`resume` | Custom conversation file storage | SDK handles all persistence, IDs, forking automatically |
+| PTY | node-pty (optional) | Raw child_process | child_process lacks PTY allocation; interactive programs break |
+| PTY | node-pty (optional) | pty.node | Abandoned 5 years ago |
+| Model selection | SDK `model` option | Separate Anthropic API calls | SDK handles model routing, fallback, and discovery |
+| Cost tracking | SDK ResultMessage fields | Manual token counting | SDK provides exact USD cost, per-model breakdown |
+| Permissions | SDK permission modes | Custom file-edit interceptor | SDK has 5 modes + allow/deny rules + runtime callback |
+| Pipe detection | process.stdin.isTTY (built-in) | is-interactive npm package | Built-in is sufficient, zero-dep |
+| Config merging | Object spread | cosmiconfig / rc | Overkill for simple JSON merge; keep zero-dep |
+| Project detection | fs.existsSync checks | detective / projector | Simple file existence checks; no AST parsing needed |
+| CLI arg parsing | Manual prefix parsing | commander / yargs | Only parsing `--haiku`/`--opus`/`--sonnet` flags; not worth a dep |
 
 ## Installation
 
 ```bash
-# Core dependencies
-npm install @anthropic-ai/claude-agent-sdk picocolors dotenv marked marked-terminal
+# Core (unchanged from v1)
+npm install @anthropic-ai/claude-agent-sdk marked marked-terminal picocolors
 
-# Dev dependencies  
-npm install -D typescript tsx tsdown vitest @types/node zod
+# Optional: PTY support for interactive commands
+npm install node-pty  # Requires C++ toolchain (Xcode CLI on macOS, build-essential on Linux)
+
+# Dev dependencies (unchanged)
+npm install -D tsdown tsx typescript vitest @types/node
 ```
 
-## Project Structure (recommended)
+### package.json changes for v2
 
+```json
+{
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
+  }
+}
 ```
-claudeshell/
-  src/
-    cli.ts              # Entry point, shebang, arg parsing
-    shell.ts            # REPL loop, readline setup
-    ai.ts               # Claude Agent SDK integration
-    passthrough.ts      # System command execution
-    config.ts           # Configuration loading/saving
-    history.ts          # Command history persistence
-    output.ts           # Terminal output formatting (colors, markdown)
-    types.ts            # Shared type definitions
-  tests/
-    shell.test.ts
-    ai.test.ts
-    passthrough.test.ts
-    config.test.ts
-  package.json
-  tsconfig.json
-  tsdown.config.ts
-  vitest.config.ts
-```
+
+## Key Insight
+
+**9 of 10 v2 features require ZERO new dependencies.** The Claude Agent SDK already provides sessions, model selection, permissions, and cost tracking. Node.js built-ins handle pipe detection and project file scanning. The only new dependency is `node-pty` for interactive command support, and it should be optional to avoid installation friction.
 
 ## Sources
 
-- [Claude Agent SDK - npm](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) - Official package, v0.2.87
-- [Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) - Full API docs
-- [Agent SDK Quickstart](https://platform.claude.com/docs/en/agent-sdk/quickstart) - Setup guide
-- [Agent SDK Streaming](https://platform.claude.com/docs/en/agent-sdk/streaming-output) - Streaming patterns
-- [picocolors](https://github.com/alexeyraspopov/picocolors) - Terminal colors benchmarks
-- [tsdown](https://tsdown.dev/guide/) - Bundler documentation
-- [Vitest](https://vitest.dev/) - Testing framework
-- [Node.js readline](https://nodejs.org/api/repl.html) - Built-in REPL module docs
+- [Claude Agent SDK Sessions](https://platform.claude.com/docs/en/agent-sdk/sessions) -- session management (continue, resume, fork)
+- [Claude Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) -- Options type, Query object, ResultMessage, ModelUsage
+- [Claude Agent SDK Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) -- permission modes, allowedTools, disallowedTools
+- [Node.js TTY docs](https://nodejs.org/api/tty.html) -- isTTY for pipe detection
+- [node-pty GitHub](https://github.com/microsoft/node-pty) -- PTY for interactive commands
+- [Claude Agent SDK GitHub Issues](https://github.com/anthropics/claude-agent-sdk-typescript/issues/14) -- session history retrieval

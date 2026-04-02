@@ -2,326 +2,323 @@
 
 **Domain:** AI-powered shell / CLI wrapping Claude Code SDK
 **Researched:** 2026-03-31
+**Scope:** v2 features -- session management, pipe-friendly AI, PTY support, permission control
+**Note:** v1 pitfalls (shell injection, REPL blocking, cd/env desync, TTY corruption, etc.) are assumed addressed. This document covers pitfalls specific to ADDING v2 features to the existing system.
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, security incidents, or abandoned projects.
+Mistakes that cause rewrites, data loss, or broken user experience.
 
-### Pitfall 1: Shell Injection via LLM-Generated Commands
+### Pitfall 1: Session Resume Fails Silently Due to CWD Mismatch
 
-**What goes wrong:** The LLM generates shell commands containing injected payloads -- either from prompt injection (malicious content in files/repos the AI reads) or from hallucination (the model produces syntactically dangerous output). A user asks "find large files" and the AI produces a command with unsanitized metacharacters, or a malicious repo comment triggers destructive commands through prompt injection.
+**What goes wrong:** Sessions are stored under `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`, where `<encoded-cwd>` is the absolute working directory with every non-alphanumeric character replaced by `-`. If a user runs `a analyze this codebase` from `/Users/me/project`, then `cd`s to `/Users/me/project/src` and types `a continue that analysis`, the SDK looks in the wrong directory and silently creates a fresh session instead of resuming. The user thinks context is preserved but the AI has no memory of the prior conversation.
 
-**Why it happens:** Developers treat LLM output as trusted because it came from "their own AI." But the LLM is an untrusted input source -- it can be manipulated via prompt injection in file contents, git commit messages, or README files it reads. OpenAI Codex CLI and Google Gemini CLI both had critical command injection vulnerabilities discovered in 2025 (CVEs from Checkpoint Research and Cyera Research Labs).
+**Why it happens:** The SDK's `continue: true` option finds the most recent session *in the current directory*. ClaudeShell changes `process.cwd()` when the user runs `cd`, which changes the encoded path used for session lookup. This is invisible to the user -- nothing indicates the session wasn't actually resumed.
 
-**Consequences:** Arbitrary code execution with user privileges. Data loss. Credential theft (GitHub tokens, API keys in environment). Trail of Bits research demonstrated bypassing allowlists through flag injection in "safe" commands like `go test -exec` and `git show --format`.
+**Consequences:** Users rely on session continuity as a core feature. Silent session loss means repeated work, lost analysis context, and confusion when the AI "forgets" what it just said. Worse, the user may not realize it happened until several commands later.
 
 **Prevention:**
-- Treat ALL LLM output as untrusted input -- never pass directly to shell-mode execution without validation
-- Use `execFile` (array arguments) instead of shell-mode execution wherever possible
-- Use argument separators (`--`) before any user/AI-provided arguments
-- Implement a command validation layer between the AI and the OS
-- Allowlists alone are insufficient -- `find`, `git`, `go test` all have execution flags that bypass them
-- Log all executed commands for audit
-- Note: Claude Code SDK already has its own permission model -- leverage it rather than building from scratch
+- Track the session ID explicitly from the `ResultMessage.session_id` field -- never rely solely on `continue: true`
+- When resuming, always use `resume: sessionId` with the stored session ID, not `continue: true`
+- Store the active session ID in `ShellState` and pass it to every `query()` call
+- When the user runs `cd`, the session should continue with the same session ID (use explicit resume, not directory-based lookup)
+- Provide visual feedback: display "(session: abc123)" in the prompt or a status indicator so users can see which session is active
+- On `/fresh` or session reset, explicitly clear the stored session ID
 
-**Detection:** Review whether any path exists from AI response to shell-mode subprocess execution without sanitization. If yes, you have this bug.
+**Detection:** Run `a hello` from `/project`, `cd src`, then `a what did I just say`. If the AI has no context from the prior greeting, session resume is broken.
 
-**Phase:** Must be addressed in Phase 1 (core architecture). Retrofitting security is orders of magnitude harder.
+**Phase:** Must be correct in the session management implementation. Fundamental design decision.
 
-**Confidence:** HIGH -- multiple real-world CVEs in production AI CLI tools confirm this.
+**Confidence:** HIGH -- documented in official Claude SDK session docs as the most common `resume` pitfall.
 
 ---
 
-### Pitfall 2: Trying to Parse Shell Syntax / Be a Real Shell
+### Pitfall 2: readline and node-pty Fighting Over stdin
 
-**What goes wrong:** Developers attempt to reimplement shell features -- parsing pipes (`|`), redirects (`>`), subshells (`$()`), globbing (`*`), quoting, aliases, job control, environment variable expansion. The project scope balloons from "AI wrapper" to "reimplementing bash."
+**What goes wrong:** The existing shell uses Node.js `readline` to manage the REPL prompt. Adding `node-pty` for interactive program support (vim, ssh, less) creates two systems competing for `process.stdin`. When a PTY-spawned program is running, readline must completely yield stdin control. When the program exits, readline must cleanly reclaim stdin. Getting this handoff wrong causes lost keystrokes (~50% randomly dropped), double-echoed input, or a completely frozen shell.
 
-**Why it happens:** Seems simple at first -- "just split on `|`". But shell syntax is context-sensitive and enormously complex. Even fish shell took years to get right. Bash has decades of POSIX compliance and edge cases baked in.
+**Why it happens:** Node.js documents that there should be only one `tty.ReadStream` instance reading stdin at a time. `readline` sets raw mode on stdin for its prompt handling. `node-pty` allocates a separate pseudo-terminal that needs its own input stream. If both are active simultaneously, keystrokes are split randomly between them. The handoff on program exit is also fragile -- readline must re-enter raw mode and redisplay the prompt without corrupting terminal state.
 
-**Consequences:** Months of work on edge cases. Commands that work in bash break in your shell. Users discover their aliases don't work, their `.bashrc` isn't sourced, pipes behave differently. They go back to their real shell.
+**Consequences:** Users type commands and characters disappear. Interactive programs behave erratically. After exiting vim or ssh, the shell prompt is broken or keystrokes echo twice.
 
 **Prevention:**
-- Pass ALL non-AI commands to `bash -c "entire command"` (or user's preferred shell) as a single string
-- Only intercept the `a` prefix -- everything else passes through verbatim
-- Do not parse shell syntax yourself -- let the real shell handle pipes, redirects, globs
-- Consider using `node-pty` for proper pseudo-terminal allocation when running system commands
+- Before spawning a PTY child: call `rl.pause()`, disable raw mode, pipe `process.stdin` directly to the PTY
+- After PTY child exits: re-enable raw mode, call `rl.resume()`, redisplay the prompt
+- Never have readline and a PTY child reading stdin simultaneously
+- Consider a state machine: `IDLE` (readline owns stdin), `PASSTHROUGH` (child process owns stdin via spawn inherit), `PTY` (node-pty owns stdin). Transitions must be atomic
+- Test with: vim (full TUI), ssh (remote session), less (pager), ctrl+c inside PTY program, rapid exit-and-type sequences
 
-**Detection:** If you find yourself writing a tokenizer or parser for shell commands, stop. Try running: `ls | grep foo`, `cd ~/Projects && pwd`, `export FOO=bar; echo $FOO`, `for i in {1..3}; do echo $i; done`. If any fail, you're reimplementing too much.
+**Detection:** Open vim via the shell, type text, exit. Immediately type a command. If characters are missing or doubled, the handoff is broken.
 
-**Phase:** Phase 1 (architecture decision). This determines the entire project direction.
+**Phase:** PTY support implementation. Must be designed before any PTY code is written.
 
-**Confidence:** HIGH -- the #1 failure mode of shell wrapper projects.
+**Confidence:** HIGH -- Node.js issue #5574 documents the exact keystroke-loss pattern with multiple stdin readers.
 
 ---
 
-### Pitfall 3: Blocking the REPL / Broken Ctrl+C
+### Pitfall 3: Pipe Input Destroys the Interactive REPL
 
-**What goes wrong:** Two interrelated failures: (a) The shell becomes completely unresponsive while waiting for AI responses -- no visual feedback, no cancellation possible. (b) Ctrl+C kills the entire shell instead of just the current operation.
+**What goes wrong:** When stdin is piped (`cat file.txt | claudeshell` or `echo "a summarize" | claudeshell`), `process.stdin.isTTY` is `false`. The current readline interface is initialized with `terminal: true`, which will break. More subtly, the `a` command pipe use case (`cat log.txt | a summarize`) requires reading piped data as context while KEEPING the REPL interactive -- two fundamentally different stdin modes at the same time.
 
-**Why it happens:** Node.js is single-threaded. If AI streaming isn't properly async, or if the readline interface isn't paused/resumed correctly, the event loop blocks. Default Node.js SIGINT behavior is to exit the process. The `AbortController` pattern for cancelling SDK queries isn't obvious.
+**Why it happens:** Unix pipes replace stdin with a pipe fd. `process.stdin.isTTY` becomes `undefined`/`false`. readline configured with `terminal: true` on a non-TTY stdin causes either a crash ("Raw mode is not supported") or silent malfunction. Claude Code itself had issue #1072 and #5925 documenting this exact crash pattern. The harder problem is that `cat file.txt | a summarize` needs to: (1) read all piped data from stdin, (2) pass it as context to the AI prompt, (3) return to interactive mode for the response -- but stdin is exhausted after step 1.
 
-**Consequences:** Users who are used to sub-100ms shell response times will not tolerate multi-second freezes with no feedback. One accidental Ctrl+C killing their shell session destroys trust immediately.
+**Consequences:** Users who try to pipe data into the shell get crashes or hangs. The pipe workflow -- one of the most requested v2 features -- simply does not work.
 
 **Prevention:**
-- Stream AI responses token-by-token (Claude SDK supports `includePartialMessages`)
-- Show a spinner/indicator within 100ms of the `a` command being entered
-- Use `AbortController` with the SDK query -- SIGINT handler calls `controller.abort()`
-- During pass-through commands: let SIGINT flow to child process (`spawn` with `{ stdio: 'inherit' }`)
-- At idle prompt: readline handles SIGINT by clearing the current line
-- NEVER call `process.exit()` on SIGINT
-- Test: start a long AI query, press Ctrl+C, verify it cancels within 1 second and returns to prompt
+- Detect pipe vs TTY at startup: if `process.stdin.isTTY` is false, switch to non-interactive mode automatically
+- For non-interactive mode: read all stdin, process the `a` command, output result to stdout (plain text, no colors), exit
+- For the hybrid case (`cat file.txt | a summarize` within an interactive session): this is NOT piping into claudeshell -- it is claudeshell detecting that a subcommand's stdin should come from a pipe. Implement this as a shell syntax feature, not stdin multiplexing
+- Alternative approach: use the shell's passthrough to bash, which naturally handles pipes. `cat file.txt | a summarize` can be rewritten internally as reading the file content and injecting it into the AI prompt
+- Check `process.stdout.isTTY` separately for output formatting -- piped output should be plain text without ANSI codes or markdown rendering
+- Claude Code SDK's `--output-format json` flag is useful for programmatic consumers
 
-**Detection:** Time the interval between pressing Enter on an `a` command and seeing the first visual feedback. If >2 seconds with nothing, UX is broken. Press Ctrl+C at an empty prompt -- shell should NOT exit.
+**Detection:** Run `echo "hello" | claudeshell` -- should not crash. Run `cat large_file.txt | claudeshell -p "summarize"` -- should output a plain-text summary.
 
-**Phase:** Phase 1 (REPL foundation + streaming architecture). Must be correct from day one.
+**Phase:** Pipe support implementation. Requires architectural decision on how piped context reaches the AI.
 
-**Confidence:** HIGH -- streaming UX is well-studied; users perceive streaming as 40-60% faster than equivalent non-streaming.
+**Confidence:** HIGH -- Claude Code issues #1072, #5925 document the exact "Raw mode not supported" crash. The pipe architecture challenge is well-understood from tools like `aichat` and `gh copilot suggest`.
 
 ---
 
-### Pitfall 4: `cd` Not Changing Directory / Env Desync
+### Pitfall 4: Permission Escalation Through Session Resume
 
-**What goes wrong:** Running `cd /some/path` via a child process means the cd executes in a child process and the parent's cwd never changes. Similarly, `export FOO=bar` in one command doesn't persist to the next because each `spawn()` gets a fresh env copy. The AI then operates in the wrong directory with wrong environment.
+**What goes wrong:** A session created with restrictive permissions (`allowedTools: ["Read", "Grep"]`) is resumed later with more permissive settings (e.g., `permissionMode: "acceptEdits"` or `bypassPermissions`). The AI now has access to tools and actions that were denied in the original session. Conversely, a session created with broad permissions might be resumed with restrictions, but the AI's conversation history contains results from tools that are now denied -- leading to inconsistent state.
 
-**Why it happens:** Every spawned child process has its own working directory and environment. `cd` is a shell builtin because only the current process can change its own cwd.
+**Why it happens:** The SDK applies the *current query's* permission options, not the original session's. Session resume restores conversation history but does not restore the permission context. Developers assume "same session = same permissions" but this is not how the SDK works. The `bypassPermissions` warning in the SDK docs explicitly states that all subagents inherit this mode and it cannot be overridden.
 
-**Consequences:** Users type `cd project && ls` and see wrong files. AI queries operate in wrong directory. Fundamental shell contract is broken. This is a dealbreaker -- users will abandon immediately.
+**Consequences:** Untrusted or shared sessions could be weaponized to escalate permissions. A user who carefully restricted AI access in one context gets broad access when resuming from a different configuration. In the opposite direction, resuming with tighter permissions creates confusing "permission denied" errors for tools the AI previously used successfully.
 
 **Prevention:**
-- Intercept `cd` as a builtin command. Call `process.chdir(resolvedPath)` directly
-- Handle `cd` edge cases: no args (go to $HOME), `cd -` (previous dir), `cd ~` (home), `CDPATH`
-- Maintain a session env map. Intercept `export` as a builtin. Merge session env into every `spawn()` call
-- Alternative: run all commands in a persistent shell subprocess (e.g., `node-pty`) where state naturally persists
-- After every passthrough command, re-read the shell's `$PWD` if not using persistent subprocess
+- Store the permission mode alongside the session ID in `ShellState`
+- When resuming a session, restore the same permission mode unless the user explicitly changes it
+- Warn the user if the permission mode differs from the original session: "This session was created with restricted permissions. Current mode allows file edits. Continue? [y/N]"
+- Never store `bypassPermissions` sessions -- or if you do, mark them clearly so they aren't accidentally resumed in production contexts
+- Use `disallowed_tools` as a hard deny list that persists regardless of permission mode (the SDK enforces this even in `bypassPermissions`)
 
-**Detection:** `cd /tmp && pwd` should show `/tmp`. `export FOO=bar` then `echo $FOO` should show `bar`.
+**Detection:** Create a session with `allowedTools: ["Read"]`, resume it with `permissionMode: "bypassPermissions"`. If the AI can now write files, permission escalation exists.
 
-**Phase:** Phase 1 (shell passthrough architecture).
+**Phase:** Must be addressed when implementing session management + permission control together.
 
-**Confidence:** HIGH -- fundamental to any shell wrapper.
+**Confidence:** HIGH -- the SDK docs explicitly warn about `allowed_tools` not constraining `bypassPermissions`, and subagent permission inheritance.
 
 ---
 
-### Pitfall 5: TTY/Terminal State Corruption
+### Pitfall 5: PTY Process Zombies and Resource Leaks
 
-**What goes wrong:** The shell wrapper corrupts terminal state -- raw mode isn't restored after AI streaming, signal handlers don't clean up, child processes with inherited stdio get killed and leave the terminal broken (no echo, wrong line discipline, garbled output). User has to run `reset` or close the terminal.
+**What goes wrong:** Interactive programs launched via node-pty don't get properly cleaned up. The user starts vim, presses Ctrl+C or the shell crashes, and the PTY process keeps running. Over time, zombie PTY processes accumulate, consuming file descriptors and system resources. On macOS, each node-pty instance consumes a pseudo-terminal pair from a limited pool (typically 256).
 
-**Why it happens:** Node.js TTY handling has well-documented edge cases: `process.stdin.setRawMode(true)` without cleanup on exit, harsh process kills to children with inherited stdio skip TTY cleanup, piped vs TTY detection (`process.stdout.isTTY`) behaves differently in spawned contexts. Building a shell means you own the terminal lifecycle -- every crash must restore state.
+**Why it happens:** node-pty's official docs warn that "Pseudo-terminals and shell processes consume system resources, so you should make sure to close the pty process when it's no longer needed by calling the kill method." But crash paths, SIGINT during PTY operation, and unhandled promise rejections can all skip the cleanup code. node-pty is also not thread-safe -- if the shell uses worker threads for any purpose, PTY operations can corrupt state.
 
-**Consequences:** Worse than a crash -- it corrupts the user's entire terminal session, affecting other running processes.
-
-**Prevention:**
-- Register `process.on('exit')`, `SIGINT`, `SIGTERM`, `uncaughtException`, and `unhandledRejection` handlers that restore terminal state
-- Prefer `SIGTERM` over `SIGKILL` for child process cleanup
-- Wrap all raw mode operations in try/finally blocks
-- Use Node.js `readline` module rather than manual raw mode where possible
-- Test: crash the process, Ctrl+C during streaming, API connection drop mid-stream, terminal resize during output
-
-**Detection:** Start an AI command, then force-kill the process externally. If `echo` stops working or the prompt disappears, you have this bug.
-
-**Phase:** Phase 1 (REPL foundation).
-
-**Confidence:** HIGH -- Node.js GitHub issues #12101, #13278, #21319 document these exact problems.
-
----
-
-### Pitfall 6: Silent SDK Error Swallowing
-
-**What goes wrong:** The Claude Agent SDK query throws on network errors, auth failures, rate limits, etc. If not caught, the async generator silently stops. User sees nothing after typing an AI command -- no error, no feedback.
-
-**Why it happens:** Async generator errors require try/catch around the `for await` loop. Unhandled rejections may not surface visibly in a readline-based REPL.
-
-**Consequences:** User sees nothing after typing an AI command. Feels completely broken with no diagnostic path.
+**Consequences:** System resource exhaustion after extended use. "No PTY available" errors that require terminal restart. Zombie processes consuming CPU/memory. On shared systems, this can affect other users.
 
 **Prevention:**
-- Wrap every `for await (const msg of query(...))` in try/catch
-- Handle specific error types: auth errors ("Run `claudeshell config`"), network errors ("Connection failed"), rate limits ("Rate limited, retry in Xs")
-- Detect and warn about conflicting `ANTHROPIC_API_KEY` values (Claude Code troubleshooting docs flag this as top issue)
-- Test with: no key, wrong key, expired key, disconnected network, rate-limited account
+- Maintain a registry of active PTY processes in `ShellState`
+- Register cleanup on ALL exit paths: `process.on('exit')`, `SIGINT`, `SIGTERM`, `uncaughtException`, `unhandledRejection`
+- Use try/finally around every PTY lifecycle: `const pty = spawn(...); try { await waitForExit(pty); } finally { pty.kill(); }`
+- Set a timeout for PTY processes -- if a PTY child hasn't produced output in N minutes, offer to kill it
+- On shell startup, check for orphaned PTY processes from previous crashed sessions
+- Never use node-pty across worker threads
 
-**Detection:** Disconnect from internet, run `a hello`. Should show a clear error, not silence.
+**Detection:** Start vim via the shell, then force-kill the shell process. Check `ps aux | grep pty` for orphaned processes. Repeat 10 times. If PTY count grows, cleanup is broken.
 
-**Phase:** Phase 1 (must work on first launch).
+**Phase:** PTY support implementation. Must be designed into the PTY lifecycle from the start.
 
-**Confidence:** HIGH -- based on Claude Code troubleshooting docs and SDK error patterns.
+**Confidence:** HIGH -- node-pty docs explicitly warn about resource cleanup. macOS PTY limits are well-documented.
 
 ## Moderate Pitfalls
 
-### Pitfall 7: Context Window Exhaustion in Long Sessions
+### Pitfall 6: Context Window Explosion with Session History
 
-**What goes wrong:** The shell maintains conversation history across many AI invocations. After 20-30 commands, the context window fills up, responses degrade in quality, latency spikes, and costs explode. The user doesn't understand why the AI suddenly "got dumb."
+**What goes wrong:** Session continuity means every prior `a` command's full conversation (prompts, tool calls, file contents, results) stays in context. Users who rely on sessions heavily hit context limits 5-10x faster than single-query users. The "lost-in-the-middle" effect (LLMs weigh beginning and end of context more heavily than the middle) means important earlier session context gets functionally ignored even before the window fills.
 
-**Why it happens:** Each `a` command adds to conversation history. File contents, command outputs, and tool-use results all consume tokens. A single `a show me what's in this directory` can consume thousands of tokens. Claude's 200K context fills faster than expected in shell contexts.
+**Why it happens:** v1 treats each `a` command independently (no session). v2 adds session continuity, which accumulates context across commands. A user running 10 AI commands in a session might have 50K+ tokens of history, with file reads and tool outputs being the biggest consumers. Research shows effective context often falls far below advertised limits -- up to 99% degradation on complex tasks.
 
 **Prevention:**
-- Implement conversation compaction (Claude SDK supports server-side compaction for Opus 4.6 and Sonnet 4.6)
-- Truncate large command outputs before adding to context (first/last N lines)
-- Consider each `a` command as potentially independent -- don't carry full history by default
-- Give users explicit control: `a --context` to reference previous commands, default to fresh context
-- Monitor token usage and warn users when approaching limits
+- Implement explicit session boundaries: `/fresh` starts a new session, `a --session` uses the current session, `a` (bare) defaults to session mode but with a configurable default
+- Use the SDK's compaction feature (`/compact` equivalent) -- trigger it automatically when token usage exceeds a threshold (e.g., 60% of window)
+- Show a "context usage" indicator: `[42K/200K tokens]` so users understand why responses may degrade
+- Truncate large tool outputs before they enter the session history (first/last N lines of command output)
+- Consider a "sliding window" approach: summarize older session turns rather than keeping full history
+- The SDK supports `persistSession: false` for stateless queries -- offer this as a flag for one-off questions within a session
 
-**Detection:** Use the shell for 30+ AI commands. Measure response latency on command 1 vs command 30. If latency doubles or quality drops, context management is broken.
+**Detection:** Start a session, run 20+ AI commands including file reads, measure response quality and latency on command 1 vs command 20. If quality drops or latency doubles, context management is needed.
 
-**Phase:** Phase 2 (after basic AI works). But architecture must support it from Phase 1 -- don't store unbounded history.
+**Phase:** Session management implementation. Must plan for compaction from the start, not bolt it on later.
 
-**Confidence:** HIGH -- universal problem in LLM tools; Kilo-Org/kilocode issue #1224 documents this pattern.
+**Confidence:** HIGH -- research from Chroma (context rot) and production LLM tools confirms this universally.
 
 ---
 
-### Pitfall 8: Cost Explosion Without Visibility
+### Pitfall 7: Permission UX That Blocks Flow
 
-**What goes wrong:** Users run expensive AI operations without realizing the cost. A single `a analyze this codebase` could read hundreds of files consuming massive tokens. Users get a surprise bill from a casual session.
+**What goes wrong:** Every potentially dangerous operation prompts the user for permission: "Allow file edit? [y/N]", "Allow bash command? [y/N]". Users who wanted AI-assisted productivity now spend more time approving operations than typing commands. They either switch to `bypassPermissions` (unsafe) or stop using AI commands (defeats the purpose).
+
+**Why it happens:** The default permission mode in the SDK triggers `canUseTool` for every unmatched tool request. If ClaudeShell implements permission control without thoughtful defaults, every `Bash`, `Write`, and `Edit` tool use prompts the user. In a shell context where the user *already typed the command*, re-asking for permission feels absurdly redundant.
+
+**Consequences:** Users disable permissions entirely (`bypassPermissions`) to avoid friction, which is the worst security outcome. Or they abandon AI commands because the UX is too slow. Neither achieves the goal of "safe but productive."
 
 **Prevention:**
-- Show token usage after each AI command (subtle, non-intrusive)
-- Implement configurable spending limits per session or per day
-- Warn before operations that will read many files
-- Cache recent file contents to avoid re-reading unchanged files
-- Use Claude Code SDK's built-in cost management features
+- Default to `acceptEdits` mode for shell contexts -- the user invoked the AI, they expect it to do things
+- Use `allowedTools` to pre-approve the standard tool set: `["Read", "Write", "Edit", "Bash", "Glob", "Grep"]`
+- Only prompt for truly dangerous operations: destructive commands (`rm -rf`), operations outside the current project directory, network access
+- Implement a "trust radius" -- auto-approve operations within the current project tree, prompt for anything outside it
+- Use `disallowed_tools` as the hard safety net rather than prompting for everything
+- Show what the AI is doing (tool start/end indicators already exist) but don't block on approval unless genuinely risky
+- Provide a config option: `permission_level: "standard" | "cautious" | "yolo"` with sensible descriptions
 
-**Detection:** Run `a refactor all TypeScript files in this project` on a large codebase. Check the API bill afterward.
+**Detection:** Run `a add a comment to this file` and count how many permission prompts appear. If > 1, the UX is too aggressive.
 
-**Phase:** Phase 2-3 (before public release).
+**Phase:** Permission control implementation. The default permission stance is a critical UX/security tradeoff.
 
-**Confidence:** MEDIUM -- common complaint in Claude Code user community.
+**Confidence:** MEDIUM -- based on Claude Code user community feedback about permission fatigue, and the SDK's explicit `dontAsk` mode existing to address this pattern.
 
 ---
 
-### Pitfall 9: Prompt Display After Async Output
+### Pitfall 8: Pipe Output Includes ANSI/Markdown Garbage
 
-**What goes wrong:** After AI streaming completes, the prompt doesn't re-appear, or appears in the wrong position interleaved with output.
+**What goes wrong:** When ClaudeShell output is piped (`a explain git | less` or `a summarize > output.txt`), the output includes ANSI color codes, markdown rendering artifacts, spinner characters, and tool-use indicators. The piped output is unreadable in a text file and breaks downstream tools that expect clean text.
+
+**Why it happens:** The existing renderer uses `marked-terminal` for markdown rendering and `picocolors` for colors. These produce ANSI escape sequences. The "Thinking..." spinner writes and erases to stderr. When stdout is piped, `process.stdout.isTTY` becomes false, but if the renderer doesn't check this, all formatting goes to the pipe.
+
+**Consequences:** One of v2's headline features (pipe-friendly output) is broken. Users can't integrate ClaudeShell with Unix pipelines, which is the primary value proposition of being a shell rather than a separate UI.
 
 **Prevention:**
-- Always write a newline after AI output completes
-- Use readline's `prompt()` method to re-display the prompt cleanly
-- Handle edge case where user types during AI output -- buffer and replay input
+- Check `process.stdout.isTTY` at renderer creation (this already exists in `createRenderer` -- verify it actually disables all formatting)
+- When `isTTY` is false: disable all ANSI codes, disable markdown rendering (output raw text), suppress spinners and progress indicators, suppress tool-use indicators
+- Write spinners and status messages to stderr only (already partially done with "Thinking..."), so they don't contaminate piped stdout
+- Support `--format json` flag for programmatic consumers
+- Support `--format plain` flag to force plain text even in a TTY
+- Test with: `a hello | cat`, `a hello > /tmp/out.txt && cat /tmp/out.txt`, `a hello | grep -c '\x1b'` (should be 0)
 
-**Detection:** Run an AI query. After it completes, the prompt should appear cleanly on its own line.
+**Detection:** Run `a hello | cat -v`. If you see `^[[` escape sequences, ANSI codes are leaking.
 
-**Phase:** Phase 1 (REPL polish).
+**Phase:** Pipe support implementation. Must verify the existing `isTTY` check is comprehensive.
 
-**Confidence:** HIGH -- fundamental readline issue.
+**Confidence:** HIGH -- the existing codebase already checks `isTTY` but only at renderer creation; it may not cover all output paths (stderr, spinner, tool indicators).
 
 ---
 
-### Pitfall 10: History File Corruption
+### Pitfall 9: PTY Breaks Ctrl+C Contract
 
-**What goes wrong:** Multiple shell instances writing to the same history file simultaneously causes data loss or corruption.
+**What goes wrong:** The existing shell has a carefully designed SIGINT contract: Ctrl+C during AI streaming calls `abortController.abort()`, Ctrl+C at idle prompt clears the line. Adding PTY support introduces a third state where Ctrl+C should flow to the PTY child process. Getting this wrong means Ctrl+C kills the shell while vim is running, or Ctrl+C doesn't cancel AI queries when a PTY was previously active.
+
+**Why it happens:** SIGINT handling must now be a three-way state machine instead of two-way. The transition between states is tricky: when does "PTY active" end? What if the PTY program spawns a child? What if the user backgrounds a PTY process? The existing `rl.on('SIGINT')` handler must be augmented or replaced depending on the current state.
+
+**Consequences:** The most critical v1 pitfall (broken Ctrl+C) re-emerges. Users lose trust when basic keyboard shortcuts behave inconsistently.
 
 **Prevention:**
-- Use append-only writes (`fs.appendFile`)
-- Consider file locking with `proper-lockfile` if multi-instance is important
-- Maintain separate histories: regular commands go to system shell history, `a` commands to ClaudeShell history
-- Never write to `~/.zsh_history` or `~/.bash_history` directly
+- Extend the state machine: `IDLE` -> Ctrl+C clears line, `AI_STREAMING` -> Ctrl+C aborts AI, `PTY_ACTIVE` -> Ctrl+C passes to PTY child
+- During PTY mode: remove or disable the readline SIGINT handler, let the PTY's signal handling take over
+- On PTY exit: restore the readline SIGINT handler immediately
+- Test each transition: idle->AI->cancel->idle, idle->PTY->ctrl+c->PTY handles it->exit->idle, AI streaming->ctrl+c->cancel->immediately start PTY->ctrl+c in PTY
+- Edge case: what happens if the user spawns a background process from the PTY and then exits? The background process may still be attached to the PTY's signals
 
-**Detection:** Open two ClaudeShell instances, run commands in both, close both, reopen -- is history intact?
+**Detection:** Start vim, press Ctrl+C (should NOT kill the shell). Exit vim, start an AI query, press Ctrl+C (should cancel AI). Verify prompt returns cleanly.
 
-**Phase:** Phase 2 (after core REPL works).
+**Phase:** PTY support implementation. Must extend the existing SIGINT architecture, not replace it.
 
-**Confidence:** MEDIUM.
+**Confidence:** HIGH -- this is a direct extension of v1 Pitfall #3 (broken Ctrl+C) which was identified as critical.
 
 ---
 
-### Pitfall 11: The "a" Prefix Collision
+### Pitfall 10: Session Serialization on Crash
 
-**What goes wrong:** The user has an existing alias, function, or binary named `a`. ClaudeShell breaks their workflow by hijacking it.
+**What goes wrong:** The shell crashes (OOM, unhandled exception, SIGKILL) mid-session. The in-memory session state (active session ID, permission mode, session metadata) is lost. On restart, the shell either starts a fresh session (losing context) or tries to resume the wrong session.
 
-**Prevention:**
-- Make the prefix configurable from day one (`claudeshell config set prefix ai`)
-- Check for existing `a` binaries/aliases on first launch and warn
-- Support multiple invocation styles: `a query`, `? query`, `ai query`
+**Why it happens:** The SDK persists session *conversations* to disk automatically (as .jsonl files). But ClaudeShell's *shell-level* session metadata (which session is "active", what permission mode is set, user preferences for the session) lives only in `ShellState` in memory. There's no write-ahead mechanism.
 
-**Detection:** Run `which a` or `type a` in the user's normal shell. If it returns something, there's a collision.
-
-**Phase:** Phase 1 (configuration). Simple to implement early, painful to change later.
-
-**Confidence:** MEDIUM -- `a` is short enough that collisions are plausible.
-
----
-
-### Pitfall 12: Large AI Responses Overwhelming Terminal
-
-**What goes wrong:** Claude generates a very long response (multi-page code file, etc.) that floods the terminal, making it hard to scroll back to find the actual answer.
+**Consequences:** Users who rely on sessions lose their active context on any crash. Since shells can crash for many reasons (out of memory during large AI operations, network interruptions, macOS sleep/wake issues), this will happen regularly.
 
 **Prevention:**
-- Consider a pager mode (pipe to `less`) for responses over N lines
-- Show a "response was N lines" summary at the end
-- Truncate with `--full` option to see everything
+- Write session metadata to a file (`~/.claudeshell/active-session.json`) on every session change
+- Include: session ID, permission mode, creation timestamp, last activity timestamp
+- On startup, check for an active session file and offer to resume: "Previous session found (2 hours ago). Resume? [Y/n]"
+- On clean exit, clear the active session file
+- On crash recovery, detect the stale file (no clean exit) and surface it prominently
+- Keep the metadata file small and write it atomically (write to temp, rename)
 
-**Phase:** Phase 2.
+**Detection:** Start a session with several AI commands, then `kill -9` the shell process. Restart the shell. If it doesn't offer to resume, crash recovery is broken.
 
-**Confidence:** LOW.
+**Phase:** Session management implementation. Simple to add early, very annoying to retrofit.
+
+**Confidence:** MEDIUM -- standard crash recovery pattern, but easy to overlook in initial implementation.
 
 ## Minor Pitfalls
 
-### Pitfall 13: Shell Startup Time Over 1 Second
+### Pitfall 11: node-pty Native Module Build Failures
 
-**What goes wrong:** Importing the Claude SDK at startup adds noticeable delay. Users expect shells to start in <200ms.
+**What goes wrong:** node-pty is a native C++ addon that requires compilation. Users installing ClaudeShell via `npm install -g claudeshell` hit build failures because they lack Xcode Command Line Tools (macOS) or build-essential (Linux). The error messages are cryptic C++ compiler output that most JS developers can't diagnose.
 
 **Prevention:**
-- Lazy-load the SDK module on first `a` command, not at startup
-- Load config files asynchronously
-- Defer auth validation until first AI use
-- Profile startup time and set a budget of <500ms
+- Document the native dependency requirement in README and package.json `engines` field
+- Consider using `@lydell/node-pty` or `node-pty-prebuilt-multiarch` which ship prebuilt binaries for common platforms
+- Make PTY support optional (graceful fallback to `spawn` with `stdio: 'inherit'` for interactive programs)
+- Add a postinstall check that verifies node-pty loaded successfully and prints a helpful message if not
+- Test the install path on a clean macOS and Linux VM
 
-**Detection:** Time `claudeshell` startup vs `zsh` startup. If >3x slower, users will notice.
+**Phase:** PTY support packaging. Address before any public release.
 
-**Phase:** Phase 2 (optimization).
-
-**Confidence:** MEDIUM.
-
----
-
-### Pitfall 14: TTY Detection for Non-Interactive Use
-
-**What goes wrong:** Output formatting (colors, markdown) breaks when piped (`claudeshell | tee log.txt`).
-
-**Prevention:** Check `process.stdout.isTTY` before applying colors/formatting. Output plain text when not a TTY.
-
-**Phase:** Phase 3 (polish).
-
-**Confidence:** LOW.
+**Confidence:** MEDIUM -- node-pty GitHub issues are dominated by build failures.
 
 ---
 
-### Pitfall 15: Home Directory / Tilde Expansion
+### Pitfall 12: Session History File Growth
 
-**What goes wrong:** `~` doesn't expand in paths when handled by Node.js builtins rather than bash.
+**What goes wrong:** Long-running sessions with many AI interactions produce large `.jsonl` session files (tens of MB). Over weeks of use, `~/.claude/projects/` grows to gigabytes. The SDK's `listSessions()` becomes slow, and session resume takes seconds to parse large files.
 
-**Prevention:** For builtins like `cd ~`, manually expand `~` to `process.env.HOME`. For pass-through commands, bash handles this since we use `bash -c`.
+**Prevention:**
+- Implement session rotation: archive sessions older than N days
+- Set a maximum session file size and auto-compact when exceeded
+- Provide a `claudeshell sessions clean` command for manual cleanup
+- Show disk usage in `claudeshell sessions list`
 
-**Phase:** Phase 1 (builtin commands).
+**Phase:** Session management polish. Not critical for initial implementation but important for long-term use.
 
-**Confidence:** HIGH -- easy to miss, easy to fix.
+**Confidence:** LOW -- depends on usage patterns; power users will hit this sooner.
+
+---
+
+### Pitfall 13: Model Selection Interacts with Session Context
+
+**What goes wrong:** A user starts a session with Opus (200K context, expensive), then switches to Haiku mid-session for a quick question. The session history exceeds Haiku's context window, causing degraded responses or errors. Conversely, switching from Haiku to Opus mid-session works fine but the user doesn't realize the cost implications of the accumulated history.
+
+**Prevention:**
+- When switching models mid-session, check if session history exceeds the new model's effective context
+- Warn if switching to a smaller model with a large session: "Session has 85K tokens. Haiku works best under 48K. Start fresh? [y/N]"
+- Show token count and estimated cost with the model name in the prompt
+- Consider starting a new session by default when switching models
+
+**Phase:** Model selection + session management interaction.
+
+**Confidence:** MEDIUM -- standard context window management challenge.
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| REPL Loop | SIGINT handling (#3), TTY corruption (#5) | Test Ctrl+C in all states; register cleanup handlers |
-| Command Pass-through | cd/env desync (#4), shell parsing (#2) | Intercept builtins; delegate everything else to bash |
-| AI Integration | Silent errors (#6), blocking REPL (#3) | try/catch + AbortController + streaming |
-| Security | Shell injection (#1) | Command validation layer; treat LLM as untrusted |
-| Streaming Output | Prompt position (#9), terminal overflow (#12) | Newline + prompt() after stream; pager for long output |
-| Context Management | Exhaustion (#7), cost explosion (#8) | Compaction; independent-by-default commands; token display |
-| Configuration | API key chaos (#6), prefix collision (#11) | Follow SDK auth chain; configurable prefix |
-| History | File corruption (#10) | Append-only; separate history files |
-| Polish | Startup time (#13), TTY detection (#14) | Lazy-load SDK; check isTTY |
+| Session Management | Silent resume failure (#1), crash recovery (#10) | Always use explicit session IDs; persist metadata to disk |
+| Session + Permissions | Permission escalation (#4) | Store and restore permission mode with session |
+| Session + Context | Context explosion (#6), model switching (#13) | Auto-compaction; token usage display; model-aware warnings |
+| Pipe Support | Pipe destroys REPL (#3), ANSI in output (#8) | Detect isTTY at startup; separate interactive vs non-interactive modes |
+| PTY Support | readline/PTY stdin conflict (#2), Ctrl+C contract (#9), zombies (#5) | State machine for stdin ownership; cleanup registry; test all SIGINT transitions |
+| PTY Packaging | Build failures (#11) | Prebuilt binaries or optional graceful degradation |
+| Permission Control | UX blocks flow (#7), session escalation (#4) | Sensible defaults (acceptEdits); trust radius concept |
+| Session Storage | File growth (#12) | Rotation; cleanup commands; size limits |
 
 ## Sources
 
-- [Trail of Bits: Prompt Injection to RCE in AI Agents](https://blog.trailofbits.com/2025/10/22/prompt-injection-to-rce-in-ai-agents/) -- HIGH confidence
-- [OpenAI Codex CLI Command Injection (Checkpoint Research)](https://research.checkpoint.com/2025/openai-codex-cli-command-injection-vulnerability/) -- HIGH confidence
-- [Cyera: Command & Prompt Injection in Gemini CLI](https://www.cyera.com/research/cyera-research-labs-discloses-command-prompt-injection-vulnerabilities-in-gemini-cli) -- HIGH confidence
-- [Securing CLI Based AI Agents](https://medium.com/@visrow/securing-cli-based-ai-agent-c36429e88783) -- MEDIUM confidence
-- [Node.js: Child process stdio terminal corruption (#12101)](https://github.com/nodejs/node/issues/12101) -- HIGH confidence
-- [Node.js: SSH TTY termination (#13278)](https://github.com/nodejs/node/issues/13278) -- HIGH confidence
-- [Node.js: readline with /dev/tty issues (#21319)](https://github.com/nodejs/node/issues/21319) -- HIGH confidence
-- [Node.js signals documentation](https://nodejs.org/api/process.html#signal-events) -- HIGH confidence
-- [Node.js readline SIGINT behavior](https://nodejs.org/api/readline.html) -- HIGH confidence
-- [Claude Code Troubleshooting Docs](https://code.claude.com/docs/en/troubleshooting) -- HIGH confidence
-- [Claude Agent SDK: Streaming Output](https://platform.claude.com/docs/en/agent-sdk/streaming-output) -- HIGH confidence
-- [Claude API: Context Windows & Compaction](https://platform.claude.com/docs/en/build-with-claude/context-windows) -- HIGH confidence
-- [Kilo-Org/kilocode: Context Window Truncation (#1224)](https://github.com/Kilo-Org/kilocode/issues/1224) -- HIGH confidence
-- [Builder.io/ai-shell](https://github.com/BuilderIO/ai-shell) -- MEDIUM confidence
-- [LangChain: AI Agent Latency 101](https://blog.langchain.com/how-do-i-speed-up-my-agent/) -- MEDIUM confidence
+- [Claude Agent SDK: Session Management](https://platform.claude.com/docs/en/agent-sdk/sessions) -- HIGH confidence (official docs, verified via WebFetch)
+- [Claude Agent SDK: Configure Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) -- HIGH confidence (official docs, verified via WebFetch)
+- [Claude Code: Pipe stdin crash (#1072)](https://github.com/anthropics/claude-code/issues/1072) -- HIGH confidence
+- [Claude Code: Raw mode pipe crash (#5925)](https://github.com/anthropics/claude-code/issues/5925) -- HIGH confidence
+- [Claude Code: Programmatic/Headless Usage](https://code.claude.com/docs/en/headless) -- HIGH confidence
+- [Node.js: Lost keystrokes with multiple stdin readers (#5574)](https://github.com/nodejs/node/issues/5574) -- HIGH confidence
+- [Node.js: readline pipe input echo (#37595)](https://github.com/nodejs/node/issues/37595) -- HIGH confidence
+- [Node.js: TTY Documentation](https://nodejs.org/api/tty.html) -- HIGH confidence
+- [node-pty: GitHub repository and docs](https://github.com/microsoft/node-pty) -- HIGH confidence
+- [Chroma Research: Context Rot](https://research.trychroma.com/context-rot) -- HIGH confidence
+- [LLM Chat History Summarization (mem0.ai)](https://mem0.ai/blog/llm-chat-history-summarization-guide-2025) -- MEDIUM confidence
+- [Context Window Management Strategies (Agenta)](https://agenta.ai/blog/top-6-techniques-to-manage-context-length-in-llms) -- MEDIUM confidence
+- [Trail of Bits: Prompt Injection to RCE](https://blog.trailofbits.com/2025/10/22/prompt-injection-to-rce-in-ai-agents/) -- HIGH confidence
+- [AI Agent Permission Models: Least Privilege (AgentNode)](https://agentnode.net/blog/ai-agent-permission-models-least-privilege) -- MEDIUM confidence
+- [Securing AI Coding Tools (Brian Gershon)](https://www.briangershon.com/blog/securing-ai-coding-tools/) -- MEDIUM confidence
