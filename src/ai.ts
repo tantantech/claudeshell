@@ -80,6 +80,33 @@ function buildExplainPrompt(lastError: LastError): string {
   ].join('\n')
 }
 
+export function buildFixPrompt(lastError: LastError): string {
+  return [
+    'The following command failed:',
+    `\`${lastError.command}\``,
+    `Exit code: ${lastError.exitCode}`,
+    'Stderr:',
+    lastError.stderr,
+    '',
+    'Suggest a single shell command to fix this error.',
+    'Reply with ONLY the command on the first line.',
+    'On subsequent lines, briefly explain why.',
+    'If no fix is possible, reply with exactly: NO_FIX',
+  ].join('\n')
+}
+
+export function parseFixResponse(text: string): string | undefined {
+  const firstLine = text.split('\n')[0]?.trim() ?? ''
+  if (firstLine === '' || firstLine.startsWith('NO_FIX')) return undefined
+  const stripped = firstLine
+    .replace(/^`+/, '')
+    .replace(/`+$/, '')
+    .replace(/^\$\s*/, '')
+    .trim()
+  if (stripped === '') return undefined
+  return stripped
+}
+
 function buildSystemPrompt(cwd: string): string {
   return [
     'You are ClaudeShell, an AI assistant running inside a terminal shell.',

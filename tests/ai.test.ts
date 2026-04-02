@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { buildFixPrompt, parseFixResponse } from '../src/ai.js'
 import type { AICallbacks } from '../src/ai.js'
 import type { LastError } from '../src/types.js'
 
@@ -259,5 +260,51 @@ describe('executeAI', () => {
     })
 
     expect(callbacks.onToolStart).toHaveBeenCalledWith('Read')
+  })
+})
+
+describe('buildFixPrompt', () => {
+  it('includes command, exit code, and stderr in output', () => {
+    const error: LastError = {
+      command: 'npm install',
+      stderr: 'EACCES permission denied',
+      exitCode: 1,
+    }
+    const result = buildFixPrompt(error)
+    expect(result).toContain('npm install')
+    expect(result).toContain('Exit code: 1')
+    expect(result).toContain('EACCES permission denied')
+    expect(result).toContain('Reply with ONLY the command on the first line')
+    expect(result).toContain('NO_FIX')
+  })
+})
+
+describe('parseFixResponse', () => {
+  it('extracts the first line as the fix command', () => {
+    expect(parseFixResponse('sudo npm install\nYou need elevated permissions')).toBe('sudo npm install')
+  })
+
+  it('returns undefined for NO_FIX', () => {
+    expect(parseFixResponse('NO_FIX')).toBeUndefined()
+  })
+
+  it('returns undefined for NO_FIX with explanation', () => {
+    expect(parseFixResponse('NO_FIX\nCannot determine fix')).toBeUndefined()
+  })
+
+  it('strips backticks from the command', () => {
+    expect(parseFixResponse('`sudo npm install`\nexplanation')).toBe('sudo npm install')
+  })
+
+  it('strips leading $ from the command', () => {
+    expect(parseFixResponse('$ sudo npm install')).toBe('sudo npm install')
+  })
+
+  it('returns undefined for empty string', () => {
+    expect(parseFixResponse('')).toBeUndefined()
+  })
+
+  it('returns undefined for whitespace-only input', () => {
+    expect(parseFixResponse('  \n  ')).toBeUndefined()
   })
 })

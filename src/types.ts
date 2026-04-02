@@ -44,4 +44,5 @@ export interface ShellState {
   readonly chatMode: boolean
   readonly currentModel: string | undefined
   readonly sessionCost: CostAccumulator
+  readonly lastSuggestedFix: string | undefined
 }
