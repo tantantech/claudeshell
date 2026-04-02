@@ -10,9 +10,9 @@
 - [x] **SESS-01**: AI remembers context across multiple `a` commands in the same session (conversation continues)
 - [x] **SESS-02**: User can type `/new` to start a fresh AI context without restarting the shell
 - [x] **SESS-03**: User can select AI model per query (`a --haiku`, `a --opus`) or set default in config
-- [ ] **SESS-04**: User can enter "chat mode" by typing `a` with no prompt — enters a continuous conversation with Claude where every line goes to AI until user types `/exit` or `/shell` to return
-- [ ] **SESS-05**: Chat mode and shell mode transitions are instant (no delay, no context loss)
-- [ ] **SESS-06**: Chat mode shows a distinct prompt (e.g., `ai >`) so user always knows which mode they're in
+- [x] **SESS-04**: User can enter "chat mode" by typing `a` with no prompt — enters a continuous conversation with Claude where every line goes to AI until user types `/exit` or `/shell` to return
+- [x] **SESS-05**: Chat mode and shell mode transitions are instant (no delay, no context loss)
+- [x] **SESS-06**: Chat mode shows a distinct prompt (e.g., `ai >`) so user always knows which mode they're in
 
 ### Pipe & Unix Integration
 
@@ -91,9 +91,9 @@
 | SESS-01 | Phase 4 | Complete |
 | SESS-02 | Phase 4 | Complete |
 | SESS-03 | Phase 4 | Complete |
-| SESS-04 | Phase 4 | Pending |
-| SESS-05 | Phase 4 | Pending |
-| SESS-06 | Phase 4 | Pending |
+| SESS-04 | Phase 4 | Complete |
+| SESS-05 | Phase 4 | Complete |
+| SESS-06 | Phase 4 | Complete |
 | PIPE-01 | Phase 5 | Pending |
 | PIPE-02 | Phase 5 | Pending |
 | PIPE-03 | Phase 5 | Pending |
