@@ -105,6 +105,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260402-e0m | Create CI/CD GitHub Actions to build binaries for macOS and Linux on version release | 2026-04-02 | 509e860 | [260402-e0m-create-ci-cd-github-actions-to-build-bin](./quick/260402-e0m-create-ci-cd-github-actions-to-build-bin/) |
 | 260402-vmf | Complete rebrand from claudeshell to nesh | 2026-04-02 | 0cd2553 | [260402-vmf-rebrand-project-from-claudeshell-to-nesh](./quick/260402-vmf-rebrand-project-from-claudeshell-to-nesh/) |
+| 260402-vxu | Deploy nesh to Railway and get DNS records for nesh.sh | 2026-04-02 | — | [260402-vxu-deploy-nesh-to-railway-and-get-dns-recor](./quick/260402-vxu-deploy-nesh-to-railway-and-get-dns-recor/) |
 
 ## Session Continuity
 
