@@ -7,6 +7,14 @@ export interface ClaudeShellConfig {
   readonly model?: string
   readonly history_size?: number
   readonly prompt_template?: string
+  readonly prefix?: string
+}
+
+function validatePrefix(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed === '' || /\s/.test(trimmed)) return undefined
+  return trimmed
 }
 
 export const CONFIG_DIR = path.join(os.homedir(), '.claudeshell')
@@ -30,6 +38,7 @@ export function loadConfig(): ClaudeShellConfig {
       ...(typeof obj.model === 'string' ? { model: obj.model } : {}),
       ...(typeof obj.history_size === 'number' ? { history_size: obj.history_size } : {}),
       ...(typeof obj.prompt_template === 'string' ? { prompt_template: obj.prompt_template } : {}),
+      ...(validatePrefix(obj.prefix) !== undefined ? { prefix: validatePrefix(obj.prefix) } : {}),
     }
 
     return config

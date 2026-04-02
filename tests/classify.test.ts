@@ -122,6 +122,36 @@ describe('classifyInput', () => {
     })
   })
 
+  describe('custom prefix', () => {
+    it('classifies "ai hello" with prefix "ai" as ai command', () => {
+      expect(classifyInput('ai hello', 'ai')).toEqual({ type: 'ai', prompt: 'hello' })
+    })
+
+    it('classifies bare "ai" with prefix "ai" as ai with empty prompt (chat mode)', () => {
+      expect(classifyInput('ai', 'ai')).toEqual({ type: 'ai', prompt: '' })
+    })
+
+    it('parses model flag with custom prefix', () => {
+      expect(classifyInput('ai --haiku test', 'ai')).toEqual({
+        type: 'ai',
+        prompt: 'test',
+        model: 'claude-haiku-4-5-20251001',
+      })
+    })
+
+    it('classifies "claude explain" with prefix "claude" as ai command', () => {
+      expect(classifyInput('claude explain', 'claude')).toEqual({ type: 'ai', prompt: 'explain' })
+    })
+
+    it('does not confuse "apt install" as ai when prefix is "ai"', () => {
+      expect(classifyInput('apt install', 'ai')).toEqual({ type: 'passthrough', command: 'apt install' })
+    })
+
+    it('defaults to prefix "a" when no second argument given', () => {
+      expect(classifyInput('a hello')).toEqual({ type: 'ai', prompt: 'hello' })
+    })
+  })
+
   describe('edge cases', () => {
     it('trims leading and trailing whitespace before classifying', () => {
       expect(classifyInput('  cd /tmp  ')).toEqual({ type: 'builtin', name: 'cd', args: '/tmp' })

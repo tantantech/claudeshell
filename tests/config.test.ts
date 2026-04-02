@@ -89,6 +89,48 @@ describe('loadConfig', () => {
   })
 })
 
+describe('loadConfig prefix validation', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('loads valid prefix from config', async () => {
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ prefix: 'ai' })
+    )
+    const { loadConfig } = await loadModule()
+    const config = loadConfig()
+    expect(config.prefix).toBe('ai')
+  })
+
+  it('ignores empty string prefix', async () => {
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ prefix: '' })
+    )
+    const { loadConfig } = await loadModule()
+    const config = loadConfig()
+    expect(config.prefix).toBeUndefined()
+  })
+
+  it('ignores prefix containing whitespace', async () => {
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ prefix: 'my prefix' })
+    )
+    const { loadConfig } = await loadModule()
+    const config = loadConfig()
+    expect(config.prefix).toBeUndefined()
+  })
+
+  it('ignores non-string prefix', async () => {
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ prefix: 123 })
+    )
+    const { loadConfig } = await loadModule()
+    const config = loadConfig()
+    expect(config.prefix).toBeUndefined()
+  })
+})
+
 describe('resolveApiKey', () => {
   const originalEnv = process.env.ANTHROPIC_API_KEY
 

@@ -18,13 +18,13 @@ function extractModelFlag(prompt: string): { readonly model?: string; readonly c
   return { cleanPrompt: prompt }
 }
 
-export function classifyInput(line: string): InputAction {
+export function classifyInput(line: string, prefix: string = 'a'): InputAction {
   const trimmed = line.trim()
   if (!trimmed) return { type: 'empty' }
 
-  // 'a' prefix routes to AI processing
-  if (trimmed === 'a' || trimmed.startsWith('a ')) {
-    const rawPrompt = trimmed.slice(2).trim()
+  // Configured prefix routes to AI processing
+  if (trimmed === prefix || trimmed.startsWith(prefix + ' ')) {
+    const rawPrompt = trimmed.slice(prefix.length).trim()
     const { model, cleanPrompt } = extractModelFlag(rawPrompt)
     if (model) {
       return { type: 'ai', prompt: cleanPrompt, model }
