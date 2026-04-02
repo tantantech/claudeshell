@@ -17,6 +17,8 @@ export type SlashCommandResult =
   | { readonly type: 'exit' }
   | { readonly type: 'new' }
   | { readonly type: 'model'; readonly model: string }
+  | { readonly type: 'permissions_show' }
+  | { readonly type: 'permissions_set'; readonly mode: 'auto' | 'ask' | 'deny' }
   | { readonly type: 'unknown'; readonly input: string }
 
 export function parseSlashCommand(raw: string): SlashCommandResult {
@@ -39,6 +41,17 @@ export function parseSlashCommand(raw: string): SlashCommandResult {
     return { type: 'model', model: resolved }
   }
 
+  if (input.startsWith('/permissions')) {
+    const arg = input.slice('/permissions'.length).trim()
+    if (!arg) {
+      return { type: 'permissions_show' }
+    }
+    if (arg === 'auto' || arg === 'ask' || arg === 'deny') {
+      return { type: 'permissions_set', mode: arg }
+    }
+    return { type: 'unknown', input }
+  }
+
   return { type: 'unknown', input }
 }
 
@@ -51,7 +64,7 @@ export async function runChatMode(params: {
   let state = params.state
   const chatPrompt = pc.cyan('ai > ')
 
-  process.stderr.write(pc.dim('Chat mode -- type /exit to return to shell, /new for fresh context, /model <name> to switch model\n'))
+  process.stderr.write(pc.dim('Chat mode -- type /exit to return to shell, /new for fresh context, /model <name> to switch model, /permissions <mode> to set permissions\n'))
 
   // Save shell history and swap in chat history
   const rlInternal = rl as unknown as { history: string[] }
@@ -95,8 +108,17 @@ export async function runChatMode(params: {
           process.stderr.write(pc.dim(`Model set to ${cmd.model}\n`))
           continue
 
+        case 'permissions_show':
+          process.stderr.write(`Permission mode: ${state.permissionMode}\n`)
+          continue
+
+        case 'permissions_set':
+          state = { ...state, permissionMode: cmd.mode }
+          process.stderr.write(pc.dim(`Permission mode set to ${cmd.mode}\n`))
+          continue
+
         case 'unknown':
-          process.stderr.write('Unknown command. Available: /exit, /new, /model <name>\n')
+          process.stderr.write('Unknown command. Available: /exit, /new, /model <name>, /permissions <mode>\n')
           continue
       }
     }

@@ -87,4 +87,45 @@ describe('parseSlashCommand', () => {
       model: 'claude-haiku-4-5-20251001',
     })
   })
+
+  it('parses /permissions with no arg as permissions_show', () => {
+    expect(parseSlashCommand('/permissions')).toEqual({
+      type: 'permissions_show',
+    })
+  })
+
+  it('parses /permissions auto as permissions_set with auto', () => {
+    expect(parseSlashCommand('/permissions auto')).toEqual({
+      type: 'permissions_set',
+      mode: 'auto',
+    })
+  })
+
+  it('parses /permissions ask as permissions_set with ask', () => {
+    expect(parseSlashCommand('/permissions ask')).toEqual({
+      type: 'permissions_set',
+      mode: 'ask',
+    })
+  })
+
+  it('parses /permissions deny as permissions_set with deny', () => {
+    expect(parseSlashCommand('/permissions deny')).toEqual({
+      type: 'permissions_set',
+      mode: 'deny',
+    })
+  })
+
+  it('returns unknown for /permissions with invalid argument', () => {
+    expect(parseSlashCommand('/permissions invalid')).toEqual({
+      type: 'unknown',
+      input: '/permissions invalid',
+    })
+  })
+
+  it('handles /permissions with extra whitespace', () => {
+    expect(parseSlashCommand('  /permissions   ask  ')).toEqual({
+      type: 'permissions_set',
+      mode: 'ask',
+    })
+  })
 })
