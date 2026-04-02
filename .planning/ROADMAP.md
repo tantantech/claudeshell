@@ -123,7 +123,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — Types, context detection module, per-project config loading
-- [ ] 06-02-PLAN.md — Permission control in AI pipeline, /permissions chat command
+- [x] 06-02-PLAN.md — Permission control in AI pipeline, /permissions chat command
 - [x] 06-03-PLAN.md — Shell REPL integration: startup detection, cd re-detection wiring
 
 ### Phase 7: PTY & Polish
