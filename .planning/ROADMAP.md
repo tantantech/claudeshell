@@ -103,7 +103,12 @@ Plans:
   3. When a shell command fails, ClaudeShell automatically shows an AI-suggested fix that the user can accept or ignore
   4. User can type `a fix` after a failed command and Claude attempts to fix it automatically
   5. User can configure a custom AI command prefix (e.g., `ai` or `claude` instead of `a`) via config file
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Pipe mode: stdin detection, pipe.ts module, cli.ts wiring
+- [ ] 05-02-PLAN.md — Error recovery: auto-fix suggestions and `a fix` command
+- [ ] 05-03-PLAN.md — Configurable AI command prefix
 
 ### Phase 6: Context & Permissions
 **Goal**: Users can trust ClaudeShell to understand their project and respect their boundaries on what AI can modify
@@ -137,6 +142,6 @@ Phases execute in numeric order: 4 -> 5 -> 6 -> 7
 | 2. AI Integration | v1.0 | 3/3 | Complete | - |
 | 3. Distribution & Platform | v1.0 | 2/2 | Complete | - |
 | 4. Sessions & Chat Mode | v2.0 | 0/3 | Planned | - |
-| 5. Pipe & Unix Integration | v2.0 | 0/0 | Not started | - |
+| 5. Pipe & Unix Integration | v2.0 | 0/3 | Planned | - |
 | 6. Context & Permissions | v2.0 | 0/0 | Not started | - |
 | 7. PTY & Polish | v2.0 | 0/0 | Not started | - |
