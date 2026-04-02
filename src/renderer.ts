@@ -1,6 +1,16 @@
 import pc from 'picocolors'
 import { Marked } from 'marked'
 import { markedTerminal } from 'marked-terminal'
+import { formatUsage, formatSessionCost } from './cost.js'
+import type { UsageInfo, CostAccumulator } from './types.js'
+
+export function renderCostFooter(usage: UsageInfo, accumulator?: CostAccumulator): void {
+  let line = pc.dim(formatUsage(usage))
+  if (accumulator && accumulator.messageCount > 0) {
+    line += pc.dim(` | ${formatSessionCost(accumulator)}`)
+  }
+  process.stderr.write(`${line}\n`)
+}
 
 export interface Renderer {
   readonly onText: (text: string) => void
