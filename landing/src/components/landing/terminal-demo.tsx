@@ -174,7 +174,7 @@ export function TerminalDemo() {
 
   return (
     <div className="relative w-full max-w-[640px] mx-auto">
-      <div className="relative rounded-xl border border-white/[0.06] bg-[#0c1210] dark:bg-[#050a08] overflow-hidden shadow-2xl shadow-black/30 dark:shadow-black/50">
+      <div className="relative rounded-xl border border-white/[0.06] bg-[#0c1210] dark:bg-[#050a08] overflow-hidden shadow-2xl shadow-black/30 dark:shadow-black/50 dark">
         {/* Title bar */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.04] bg-white/[0.02]">
           <div className="flex gap-1.5">

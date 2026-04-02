@@ -38,11 +38,14 @@ export function MatrixRain() {
     const draw = () => {
       const isDark = resolvedTheme === "dark";
 
-      // Faster fade = shorter trails
-      ctx.fillStyle = isDark
-        ? "rgba(3, 8, 6, 0.12)"
-        : "rgba(248, 250, 249, 0.15)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (!isDark) {
+        // Light mode: clear canvas completely each frame, draw very faint chars
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else {
+        // Dark mode: semi-transparent fade for trail effect
+        ctx.fillStyle = "rgba(3, 8, 6, 0.12)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       ctx.font = `${fontSize}px JetBrains Mono, monospace`;
 
@@ -51,10 +54,9 @@ export function MatrixRain() {
         const x = i * fontSize;
         const y = drops[i] * fontSize;
 
-        // Very subtle alpha
         const alpha = isDark
           ? 0.03 + Math.random() * 0.06
-          : 0.015 + Math.random() * 0.03;
+          : 0.04 + Math.random() * 0.04;
 
         ctx.fillStyle = isDark
           ? `rgba(0, 255, 65, ${alpha})`
@@ -83,7 +85,7 @@ export function MatrixRain() {
     <canvas
       ref={canvasRef}
       id="matrix-canvas"
-      className="opacity-60"
+      className="opacity-15 dark:opacity-50"
       aria-hidden="true"
     />
   );
