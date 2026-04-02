@@ -119,7 +119,12 @@ Plans:
   2. User can place a `.claudeshell.json` in any directory and its settings (model, permissions, prefix) override global config for that project
   3. User can configure permission mode (auto-approve, ask-each-time, or deny-all) for AI file edits globally and per-project
   4. When permission mode is "ask", user sees exactly what Claude wants to do (file path, action) and can approve or deny inline before it happens
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Types, context detection module, per-project config loading
+- [ ] 06-02-PLAN.md — Permission control in AI pipeline, /permissions chat command
+- [ ] 06-03-PLAN.md — Shell REPL integration: startup detection, cd re-detection wiring
 
 ### Phase 7: PTY & Polish
 **Goal**: Interactive terminal programs work correctly inside ClaudeShell without visual glitches or broken input
@@ -143,5 +148,5 @@ Phases execute in numeric order: 4 -> 5 -> 6 -> 7
 | 3. Distribution & Platform | v1.0 | 2/2 | Complete | - |
 | 4. Sessions & Chat Mode | v2.0 | 0/3 | Planned | - |
 | 5. Pipe & Unix Integration | v2.0 | 1/3 | In Progress | - |
-| 6. Context & Permissions | v2.0 | 0/0 | Not started | - |
+| 6. Context & Permissions | v2.0 | 0/3 | Planned | - |
 | 7. PTY & Polish | v2.0 | 0/0 | Not started | - |
