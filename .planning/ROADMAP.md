@@ -61,7 +61,7 @@ Plans:
 
 </details>
 
-### 🚧 v2.0 Sessions & Power Features (In Progress)
+### v2.0 Sessions & Power Features (In Progress)
 
 **Milestone Goal:** Make ClaudeShell a power-user tool with persistent AI context, pipe-friendly output, smart error recovery, and project awareness.
 
@@ -86,7 +86,12 @@ Plans:
   3. User can type `/new` to start a fresh AI context without restarting the shell
   4. User can select a model per query (`a --haiku "quick question"`) or set a default model in config, and Claude responds using that model
   5. After each AI response, user sees token count and estimated cost; in chat mode, cumulative session cost is shown
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Foundation types, session.ts, and cost.ts modules
+- [ ] 04-02-PLAN.md — Model flag parsing, AI pipeline session/model/cost wiring
+- [ ] 04-03-PLAN.md — Chat mode module and shell REPL integration
 
 ### Phase 5: Pipe & Unix Integration
 **Goal**: Users can pipe data through AI like any Unix tool and get automatic help recovering from command failures
@@ -131,7 +136,7 @@ Phases execute in numeric order: 4 -> 5 -> 6 -> 7
 | 1. Shell Foundation | v1.0 | 4/4 | Complete | - |
 | 2. AI Integration | v1.0 | 3/3 | Complete | - |
 | 3. Distribution & Platform | v1.0 | 2/2 | Complete | - |
-| 4. Sessions & Chat Mode | v2.0 | 0/0 | Not started | - |
+| 4. Sessions & Chat Mode | v2.0 | 0/3 | Planned | - |
 | 5. Pipe & Unix Integration | v2.0 | 0/0 | Not started | - |
 | 6. Context & Permissions | v2.0 | 0/0 | Not started | - |
 | 7. PTY & Polish | v2.0 | 0/0 | Not started | - |
