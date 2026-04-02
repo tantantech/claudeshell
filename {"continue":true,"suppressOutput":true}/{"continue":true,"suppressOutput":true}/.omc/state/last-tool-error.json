@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /Users/tald/Projects/claudeshell && npx vitest run 2>&1\",\"timeout\":30000,\"description\":\"Run all tests\"}",
-  "error": "Exit code 1\n\n RUN  v4.1.2 /Users/tald/Projects/claudeshell\n\nWarning: could not save history: ENOTDIR: not a directory, mkdir '/dev/null/impossible'\nhello\nbash: nonexistent_command_xyz_12345: command not found\nThinking...\rThinking...\rerr\nThinking...\rThinking...\rThinking...\rThinking...\rThinking...\rThinking...\rThinking...\rThinking...\rThinking...\rThinking...\r             \rThinking...\rThinking...\r ❯ tests/ai-permissions.test.ts (12 tests | 3 failed) 81ms\n     × passes permissionMode plan for deny mod...",
-  "timestamp": "2026-04-02T19:37:02.233Z",
-  "retry_count": 1
-}

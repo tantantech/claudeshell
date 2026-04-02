@@ -4,3 +4,8 @@ dist/
 claudeshell-*
 sea-config.json
 sea-prep.blob
+.omc/
+.playwright-mcp/
+.next/
+landing-*.png
+"{\"continue\":true,\"suppressOutput\":true}"/

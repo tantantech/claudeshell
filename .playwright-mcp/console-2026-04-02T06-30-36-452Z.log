@@ -1,4 +1,0 @@
-[      -1ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.npmjs.com/package/claudeshell:0
-[    7056ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://www.npmjs.com/signup:0
-[   27172ms] [LOG] show-hide-password @ https://static-production.npmjs.com/commons.96dca116e61ece0bdca4.js:286
-[   27172ms] [LOG] show-hide-password @ https://static-production.npmjs.com/commons.96dca116e61ece0bdca4.js:286
