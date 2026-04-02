@@ -210,14 +210,22 @@
   );
 }
 
-/* Typing cursor blink */
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+/* Typing cursor blink — smooth fade */
+@keyframes cursor-fade {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 .cursor-blink {
-  animation: blink 1s step-end infinite;
+  animation: cursor-fade 1.2s ease-in-out infinite;
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: currentColor;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  border-radius: 1px;
 }
 
 /* Pulse glow for CTA */

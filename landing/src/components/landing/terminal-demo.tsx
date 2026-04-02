@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface TerminalLine {
   type: "prompt" | "command" | "output" | "tool" | "ai" | "blank";
@@ -14,7 +14,7 @@ const DEMO_LINES: TerminalLine[] = [
   { type: "output", text: "README.md  package.json  src/  tests/", delay: 300 },
   { type: "blank", text: "", delay: 300 },
   { type: "prompt", text: "claudeshell", delay: 100 },
-  { type: "command", text: "a find all typescript files larger than 100 lines", delay: 1200 },
+  { type: "command", text: "a find typescript files over 100 lines", delay: 1200 },
   { type: "tool", text: "  \u2192 Reading src/...", delay: 400 },
   { type: "tool", text: "  \u2192 Running wc -l src/*.ts...", delay: 600 },
   { type: "blank", text: "", delay: 200 },
@@ -33,70 +33,132 @@ const DEMO_LINES: TerminalLine[] = [
   { type: "ai", text: "  const config: RequestConfig = { url: endpoint };", delay: 200 },
 ];
 
+// State machine phases
+type Phase =
+  | { kind: "waiting"; lineIndex: number }
+  | { kind: "typing"; lineIndex: number; charIndex: number }
+  | { kind: "advancing"; lineIndex: number }
+  | { kind: "done" };
+
+const Cursor = () => <span className="cursor-blink text-primary" />;
+
+const Prompt = () => (
+  <span className="flex items-center gap-0 shrink-0">
+    <span className="bg-primary/90 text-primary-foreground px-2 py-0.5 text-[11px] font-bold rounded-l">
+      claudeshell
+    </span>
+    <span className="bg-foreground/8 dark:bg-white/8 text-foreground/60 px-1.5 py-0.5 text-[11px]">
+      ~/Projects
+    </span>
+    <span className="bg-foreground/5 dark:bg-white/5 text-foreground/40 px-1.5 py-0.5 text-[11px] rounded-r">
+      main
+    </span>
+    <span className="text-primary/70 ml-2 text-xs">&gt;</span>
+  </span>
+);
+
 export function TerminalDemo() {
-  const [visibleLines, setVisibleLines] = useState<number>(0);
-  const [typingIndex, setTypingIndex] = useState(0);
-  const [currentTyped, setCurrentTyped] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [renderedLines, setRenderedLines] = useState<
+    Array<{ line: TerminalLine; typed?: string }>
+  >([]);
+  const [phase, setPhase] = useState<Phase>({ kind: "waiting", lineIndex: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // Main state machine
   useEffect(() => {
-    if (visibleLines >= DEMO_LINES.length) {
-      const timeout = setTimeout(() => {
-        setVisibleLines(0);
-        setTypingIndex(0);
-        setCurrentTyped("");
-        setIsTyping(false);
+    clearTimer();
+
+    if (phase.kind === "done") {
+      timerRef.current = setTimeout(() => {
+        setRenderedLines([]);
+        setPhase({ kind: "waiting", lineIndex: 0 });
       }, 4000);
-      return () => clearTimeout(timeout);
+      return clearTimer;
     }
 
-    const line = DEMO_LINES[visibleLines];
-
-    if (line.type === "command" && !isTyping) {
-      setIsTyping(true);
-      setCurrentTyped("");
-      setTypingIndex(0);
-      return;
-    }
-
-    if (isTyping) {
-      const cmd = DEMO_LINES[visibleLines].text;
-      if (typingIndex < cmd.length) {
-        const timeout = setTimeout(() => {
-          setCurrentTyped(cmd.slice(0, typingIndex + 1));
-          setTypingIndex(typingIndex + 1);
-        }, 25 + Math.random() * 45);
-        return () => clearTimeout(timeout);
+    if (phase.kind === "waiting") {
+      const { lineIndex } = phase;
+      if (lineIndex >= DEMO_LINES.length) {
+        setPhase({ kind: "done" });
+        return;
       }
-      setIsTyping(false);
-      const timeout = setTimeout(() => {
-        setVisibleLines((v) => v + 1);
-      }, 200);
-      return () => clearTimeout(timeout);
+      const line = DEMO_LINES[lineIndex];
+      timerRef.current = setTimeout(() => {
+        if (line.type === "command") {
+          // Add the prompt line first, then start typing
+          setRenderedLines((prev) => [
+            ...prev,
+            { line: DEMO_LINES[lineIndex - 1] ?? line, typed: "" },
+          ]);
+          setPhase({ kind: "typing", lineIndex, charIndex: 0 });
+        } else if (line.type === "prompt") {
+          // Don't render prompt yet — it gets rendered when the command starts typing
+          setPhase({ kind: "waiting", lineIndex: lineIndex + 1 });
+        } else {
+          // Render non-prompt, non-command lines immediately
+          setRenderedLines((prev) => [...prev, { line }]);
+          setPhase({ kind: "waiting", lineIndex: lineIndex + 1 });
+        }
+      }, line.delay);
+      return clearTimer;
     }
 
-    const timeout = setTimeout(() => {
-      setVisibleLines((v) => v + 1);
-    }, line.delay);
+    if (phase.kind === "typing") {
+      const { lineIndex, charIndex } = phase;
+      const cmd = DEMO_LINES[lineIndex].text;
 
-    return () => clearTimeout(timeout);
-  }, [visibleLines, isTyping, typingIndex]);
+      if (charIndex < cmd.length) {
+        timerRef.current = setTimeout(() => {
+          setRenderedLines((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            next[next.length - 1] = { ...last, typed: cmd.slice(0, charIndex + 1) };
+            return next;
+          });
+          setPhase({ kind: "typing", lineIndex, charIndex: charIndex + 1 });
+        }, 30 + Math.random() * 40);
+        return clearTimer;
+      }
 
+      // Typing done — finalize the line and advance
+      timerRef.current = setTimeout(() => {
+        setRenderedLines((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = {
+            line: DEMO_LINES[lineIndex],
+            typed: undefined,
+          };
+          return next;
+        });
+        setPhase({ kind: "waiting", lineIndex: lineIndex + 1 });
+      }, 200);
+      return clearTimer;
+    }
+
+    return clearTimer;
+  }, [phase, clearTimer]);
+
+  // Auto-scroll
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [visibleLines, currentTyped]);
+  }, [renderedLines]);
 
   const getLineClasses = (line: TerminalLine) => {
     switch (line.type) {
-      case "prompt":
-        return "text-muted-foreground";
       case "command":
-        return "text-foreground font-medium";
+        return "text-white/90 font-medium";
       case "output":
-        return "text-muted-foreground/80";
+        return "text-white/50";
       case "tool":
         return "text-primary/50 text-[13px]";
       case "ai":
@@ -104,24 +166,11 @@ export function TerminalDemo() {
       case "blank":
         return "";
       default:
-        return "text-foreground";
+        return "text-white/70";
     }
   };
 
-  const renderPrompt = () => (
-    <span className="flex items-center gap-0 shrink-0">
-      <span className="bg-primary/90 text-primary-foreground px-2 py-0.5 text-[11px] font-bold rounded-l">
-        claudeshell
-      </span>
-      <span className="bg-foreground/8 dark:bg-white/8 text-foreground/60 px-1.5 py-0.5 text-[11px]">
-        ~/Projects
-      </span>
-      <span className="bg-foreground/5 dark:bg-white/5 text-foreground/40 px-1.5 py-0.5 text-[11px] rounded-r">
-        main
-      </span>
-      <span className="text-primary/70 ml-2 text-xs">&gt;</span>
-    </span>
-  );
+  const isCurrentlyTyping = phase.kind === "typing";
 
   return (
     <div className="relative w-full max-w-[640px] mx-auto">
@@ -136,40 +185,70 @@ export function TerminalDemo() {
           <span className="flex-1 text-center text-[11px] text-white/30 font-mono">
             claudeshell
           </span>
-          <div className="w-[52px]" /> {/* Balance the dots */}
+          <div className="w-[52px]" />
         </div>
 
         {/* Terminal body */}
         <div
           ref={containerRef}
           className="p-4 font-mono text-[13px] leading-[1.7] min-h-[180px] overflow-hidden"
-          style={{ color: "#e8f5ee" }}
         >
-          {DEMO_LINES.slice(0, visibleLines).map((line, i) => (
-            <div key={i} className={`${getLineClasses(line)} min-h-[1.5rem]`}>
-              {line.type === "prompt" ? (
-                <span className="flex items-center gap-2">
-                  {renderPrompt()}
-                  {i === visibleLines - 1 && isTyping && (
-                    <span className="text-white/90 font-medium">
-                      {currentTyped}
-                      <span className="cursor-blink text-primary/80">&#9608;</span>
-                    </span>
+          {renderedLines.map((entry, i) => {
+            // This is a prompt+typing line
+            if (entry.typed !== undefined) {
+              return (
+                <div key={i} className="min-h-[1.5rem] flex items-center gap-2">
+                  <Prompt />
+                  <span className="text-white/90 font-medium">
+                    {entry.typed}
+                  </span>
+                  {i === renderedLines.length - 1 && isCurrentlyTyping && (
+                    <Cursor />
                   )}
-                </span>
-              ) : (
-                <span>{line.text}</span>
-              )}
-            </div>
-          ))}
-          {visibleLines < DEMO_LINES.length &&
-            DEMO_LINES[visibleLines]?.type === "prompt" &&
-            !isTyping && (
+                </div>
+              );
+            }
+
+            // Finalized command line (after typing is done)
+            if (entry.line.type === "command") {
+              return (
+                <div key={i} className="min-h-[1.5rem] flex items-center gap-2">
+                  <Prompt />
+                  <span className="text-white/90 font-medium">
+                    {entry.line.text}
+                  </span>
+                </div>
+              );
+            }
+
+            // All other lines
+            return (
+              <div
+                key={i}
+                className={`${getLineClasses(entry.line)} min-h-[1.5rem]`}
+              >
+                {entry.line.text}
+              </div>
+            );
+          })}
+
+          {/* Idle cursor on new prompt — only when NOT typing and NOT done */}
+          {phase.kind === "waiting" &&
+            phase.lineIndex < DEMO_LINES.length &&
+            DEMO_LINES[phase.lineIndex]?.type === "prompt" && (
               <div className="min-h-[1.5rem] flex items-center gap-2">
-                {renderPrompt()}
-                <span className="cursor-blink text-primary/80">&#9608;</span>
+                <Prompt />
+                <Cursor />
               </div>
             )}
+
+          {/* Show cursor after all lines rendered, waiting to restart */}
+          {phase.kind === "done" && (
+            <div className="min-h-[1.5rem] flex items-center gap-2 mt-1">
+              <Prompt />
+              <Cursor />
+            </div>
+          )}
         </div>
       </div>
 
