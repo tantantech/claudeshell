@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/Users/tald/Projects/claudeshell/landing/tailwind.config.ts\"}",
+  "error": "File does not exist. Note: your current working directory is /Users/tald/Projects/claudeshell/landing.",
+  "timestamp": "2026-04-02T06:19:42.359Z",
+  "retry_count": 1
+}

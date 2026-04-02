@@ -1,0 +1,206 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - link "claudeshell" [ref=e5] [cursor=pointer]:
+          - /url: "#"
+          - img [ref=e7]
+          - generic [ref=e9]: claudeshell
+        - generic [ref=e10]:
+          - link "Features" [ref=e11] [cursor=pointer]:
+            - /url: "#features"
+          - link "Demo" [ref=e12] [cursor=pointer]:
+            - /url: "#demo"
+          - link "Architecture" [ref=e13] [cursor=pointer]:
+            - /url: "#architecture"
+          - link "View on GitHub" [ref=e15] [cursor=pointer]:
+            - /url: https://github.com/tantantech/claudeshell
+            - img [ref=e16]
+          - button "Switch to light mode" [ref=e18] [cursor=pointer]:
+            - img [ref=e19]
+    - main [ref=e25]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: v0.1.0 — AI-native shell
+        - heading "Your terminal, supercharged with AI." [level=1] [ref=e30]:
+          - generic [ref=e31]: Your terminal,
+          - generic [ref=e32]: supercharged
+          - generic [ref=e33]: with AI.
+        - paragraph [ref=e34]:
+          - text: Type commands as usual. Prefix with
+          - code [ref=e35]: a
+          - text: to invoke Claude with full filesystem and terminal access.
+        - generic [ref=e36]:
+          - button "$ npm install -g claudeshell" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - generic [ref=e40]: $
+            - generic [ref=e41]: npm install -g claudeshell
+            - img [ref=e42]
+          - link "View on GitHub" [ref=e45] [cursor=pointer]:
+            - /url: https://github.com/tantantech/claudeshell
+            - img [ref=e46]
+            - text: View on GitHub
+            - img [ref=e48]
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]: "12"
+            - generic [ref=e53]: modules
+          - generic [ref=e55]:
+            - generic [ref=e56]: ~650
+            - generic [ref=e57]: lines
+          - generic [ref=e59]:
+            - generic [ref=e60]: "111"
+            - generic [ref=e61]: tests
+      - generic [ref=e64]:
+        - generic [ref=e70]: claudeshell
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]: claudeshell
+            - generic [ref=e76]: ~/Projects
+            - generic [ref=e77]: main
+            - generic [ref=e78]: ">"
+          - generic [ref=e79]: █
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - paragraph [ref=e84]: Capabilities
+          - heading "Everything you need, nothing you don't" [level=2] [ref=e85]
+          - paragraph [ref=e86]: A shell that stays out of your way for normal commands and brings full AI power when you need it.
+        - generic [ref=e87]:
+          - generic [ref=e90]:
+            - img [ref=e92]
+            - heading "Shell First" [level=3] [ref=e94]:
+              - text: Shell First
+              - img [ref=e95]
+            - paragraph [ref=e97]: Every command works as expected — pipes, redirects, globs. ClaudeShell delegates to your system shell.
+          - generic [ref=e100]:
+            - img [ref=e102]
+            - heading "Instant AI" [level=3] [ref=e104]:
+              - text: Instant AI
+              - img [ref=e105]
+            - paragraph [ref=e107]: Prefix with "a" and Claude reads files, runs commands, writes code — all streamed in real-time.
+          - generic [ref=e110]:
+            - img [ref=e112]
+            - heading "Agent SDK" [level=3] [ref=e114]:
+              - text: Agent SDK
+              - img [ref=e115]
+            - paragraph [ref=e117]: "Built on the official Claude Agent SDK. Full tool-use: file read/write, command execution, code editing."
+          - generic [ref=e120]:
+            - img [ref=e122]
+            - heading "Error Context" [level=3] [ref=e127]:
+              - text: Error Context
+              - img [ref=e128]
+            - paragraph [ref=e130]: Failed commands are captured. Type "a explain" and Claude analyzes the error with full context.
+          - generic [ref=e133]:
+            - img [ref=e135]
+            - heading "Git Aware" [level=3] [ref=e139]:
+              - text: Git Aware
+              - img [ref=e140]
+            - paragraph [ref=e142]: Powerline-style prompt shows branch, directory, and status. Claude understands your repo context.
+          - generic [ref=e145]:
+            - img [ref=e147]
+            - heading "Fast Startup" [level=3] [ref=e149]:
+              - text: Fast Startup
+              - img [ref=e150]
+            - paragraph [ref=e152]: Agent SDK lazy-loaded on first AI command. Shell is instant — no waiting for model initialization.
+          - generic [ref=e155]:
+            - img [ref=e157]
+            - heading "Full Control" [level=3] [ref=e159]:
+              - text: Full Control
+              - img [ref=e160]
+            - paragraph [ref=e162]: Ctrl+C cancels streaming AI responses mid-flight. Ctrl+D exits. Arrow keys navigate history.
+          - generic [ref=e165]:
+            - img [ref=e167]
+            - heading "12 Modules" [level=3] [ref=e171]:
+              - text: 12 Modules
+              - img [ref=e172]
+            - paragraph [ref=e174]: ~650 lines of TypeScript. Each module has a single responsibility. Clean, auditable, extensible.
+      - generic [ref=e176]:
+        - generic [ref=e177]:
+          - paragraph [ref=e178]: How it works
+          - heading "Four steps. Zero friction." [level=2] [ref=e179]
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - generic [ref=e182]: "01"
+            - generic [ref=e183]:
+              - heading "You type a command" [level=3] [ref=e184]
+              - paragraph [ref=e185]: Regular shell commands work exactly as expected. No learning curve.
+              - generic [ref=e186]: git status
+          - generic [ref=e187]:
+            - generic [ref=e188]: "02"
+            - generic [ref=e189]:
+              - heading "ClaudeShell classifies it" [level=3] [ref=e190]
+              - paragraph [ref=e191]: Builtin? Shell command? AI request? Routing is instant.
+              - generic [ref=e192]: classify(input) → builtin | passthrough | ai
+          - generic [ref=e193]:
+            - generic [ref=e194]: "03"
+            - generic [ref=e195]:
+              - heading "Prefix \"a\" for AI" [level=3] [ref=e196]
+              - paragraph [ref=e197]: Claude reads files, runs commands, and writes code — streamed live.
+              - generic [ref=e198]: a refactor src/utils.ts to use async/await
+          - generic [ref=e199]:
+            - generic [ref=e200]: "04"
+            - generic [ref=e201]:
+              - heading "See everything" [level=3] [ref=e202]
+              - paragraph [ref=e203]: Tool calls are shown in real-time. Full transparency, full control.
+              - generic [ref=e204]: → Reading src/utils.ts... → Writing src/utils.ts...
+      - generic [ref=e206]:
+        - generic [ref=e207]:
+          - paragraph [ref=e208]: Architecture
+          - heading "Clean, auditable, minimal" [level=2] [ref=e209]
+          - paragraph [ref=e210]: 12 modules. ~650 lines. Every module has a single responsibility.
+        - generic [ref=e212]:
+          - code [ref=e214]: cli.ts ──▸ shell.ts ──▸ classify.ts ─┬─▸ builtins.ts │ ├─▸ passthrough.ts │ └─▸ ai.ts │ └─▸ renderer.ts
+          - generic [ref=e216]:
+            - generic [ref=e217]: cli.tsEntry point
+            - generic [ref=e218]: shell.tsREPL loop
+            - generic [ref=e219]: classify.tsInput routing
+            - generic [ref=e220]: builtins.tscd, export, exit
+            - generic [ref=e221]: passthrough.tsbash -c spawn
+            - generic [ref=e222]: ai.tsAgent SDK
+            - generic [ref=e223]: renderer.tsMarkdown output
+            - generic [ref=e224]: config.tsSettings
+            - generic [ref=e225]: prompt.tsPowerline prompt
+            - generic [ref=e226]: history.tsCommand history
+            - generic [ref=e227]: templates.tsPrompt templates
+            - generic [ref=e228]: types.tsType definitions
+        - generic [ref=e229]:
+          - generic [ref=e230]: Node.js 22+
+          - generic [ref=e231]: TypeScript 6
+          - generic [ref=e232]: Claude Agent SDK
+          - generic [ref=e233]: ESM
+          - generic [ref=e234]: Vitest
+          - generic [ref=e235]: tsdown
+      - generic [ref=e238]:
+        - img [ref=e240]
+        - heading "Ready to upgrade your terminal?" [level=2] [ref=e242]
+        - paragraph [ref=e243]: One install command. Set your API key. Start using AI in your shell.
+        - generic [ref=e244]:
+          - generic [ref=e245]: $
+          - generic [ref=e246]: npm install -g claudeshell
+        - generic [ref=e247]:
+          - link "Star on GitHub" [ref=e248] [cursor=pointer]:
+            - /url: https://github.com/tantantech/claudeshell
+            - img
+            - text: Star on GitHub
+            - img
+          - link "View on npm" [ref=e249] [cursor=pointer]:
+            - /url: https://www.npmjs.com/package/claudeshell
+    - contentinfo [ref=e250]:
+      - generic [ref=e252]:
+        - generic [ref=e253]:
+          - img [ref=e255]
+          - generic [ref=e257]: claudeshell
+        - generic [ref=e258]:
+          - link "GitHub" [ref=e259] [cursor=pointer]:
+            - /url: https://github.com/tantantech/claudeshell
+            - img [ref=e260]
+            - text: GitHub
+          - separator [ref=e262]
+          - link "npm" [ref=e263] [cursor=pointer]:
+            - /url: https://www.npmjs.com/package/claudeshell
+          - separator [ref=e264]
+          - link "Anthropic" [ref=e265] [cursor=pointer]:
+            - /url: https://console.anthropic.com
+        - paragraph [ref=e266]: ISC License · 2025
+  - button "Open Next.js Dev Tools" [ref=e272] [cursor=pointer]:
+    - img [ref=e273]
+  - alert [ref=e276]
