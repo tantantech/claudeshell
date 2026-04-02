@@ -22,8 +22,8 @@
 
 ### Error Recovery
 
-- [ ] **ERR-04**: When a command fails, AI automatically offers a suggested fix (not just explain — actionable fix)
-- [ ] **ERR-05**: User can type `a fix` to let AI attempt to fix the last failed command automatically
+- [x] **ERR-04**: When a command fails, AI automatically offers a suggested fix (not just explain — actionable fix)
+- [x] **ERR-05**: User can type `a fix` to let AI attempt to fix the last failed command automatically
 
 ### Project Context
 
@@ -97,8 +97,8 @@
 | PIPE-01 | Phase 5 | Complete |
 | PIPE-02 | Phase 5 | Complete |
 | PIPE-03 | Phase 5 | Complete |
-| ERR-04 | Phase 5 | Pending |
-| ERR-05 | Phase 5 | Pending |
+| ERR-04 | Phase 5 | Complete |
+| ERR-05 | Phase 5 | Complete |
 | CTX-01 | Phase 6 | Pending |
 | CTX-02 | Phase 6 | Pending |
 | PERM-01 | Phase 6 | Pending |
