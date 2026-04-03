@@ -2,6 +2,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+export interface ProviderKeys {
+  readonly anthropic?: string
+  readonly openai?: string
+  readonly google?: string
+  readonly [key: string]: string | undefined
+}
+
 export interface NeshConfig {
   readonly api_key?: string
   readonly model?: string
@@ -10,6 +17,7 @@ export interface NeshConfig {
   readonly prefix?: string
   readonly permissions?: 'auto' | 'ask' | 'deny'
   readonly interactive_commands?: readonly string[]
+  readonly keys?: ProviderKeys
 }
 
 const VALID_PERMISSIONS = ['auto', 'ask', 'deny'] as const
@@ -20,6 +28,12 @@ function validatePermissions(value: unknown): 'auto' | 'ask' | 'deny' | undefine
     return value as 'auto' | 'ask' | 'deny'
   }
   return undefined
+}
+
+function validateKeys(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  const obj = value as Record<string, unknown>
+  return Object.values(obj).every(v => typeof v === 'string')
 }
 
 function validatePrefix(value: unknown): string | undefined {
@@ -53,6 +67,7 @@ export function loadConfig(): NeshConfig {
       ...(validatePrefix(obj.prefix) !== undefined ? { prefix: validatePrefix(obj.prefix) } : {}),
       ...(validatePermissions(obj.permissions) !== undefined ? { permissions: validatePermissions(obj.permissions) } : {}),
       ...(Array.isArray(obj.interactive_commands) && obj.interactive_commands.every((x: unknown) => typeof x === 'string') ? { interactive_commands: obj.interactive_commands as readonly string[] } : {}),
+      ...(validateKeys(obj.keys) ? { keys: obj.keys as ProviderKeys } : {}),
     }
 
     return config
@@ -68,10 +83,36 @@ export function loadConfig(): NeshConfig {
   }
 }
 
+const PROVIDER_KEY_ENV_VARS: Readonly<Record<string, string>> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  google: 'GOOGLE_API_KEY',
+}
+
+export function resolveProviderKey(providerName: string, config?: NeshConfig): string | undefined {
+  const cfg = config ?? loadConfig()
+  // Check config keys first, then env var
+  const configKey = cfg.keys?.[providerName]
+  if (configKey) return configKey
+  const envVar = PROVIDER_KEY_ENV_VARS[providerName]
+  if (envVar) {
+    const envKey = process.env[envVar]
+    if (envKey) return envKey
+  }
+  return undefined
+}
+
 export function resolveApiKey(config?: NeshConfig): string | undefined {
+  // Legacy: check env var first (backward compatible), then config api_key, then provider keys
   const envKey = process.env.ANTHROPIC_API_KEY
   if (envKey) return envKey
-  return config?.api_key ?? undefined
+  if (config?.api_key) return config.api_key
+  return config?.keys?.anthropic ?? undefined
+}
+
+export function maskKey(key: string): string {
+  if (key.length <= 8) return '****'
+  return `${key.slice(0, 4)}...${key.slice(-4)}`
 }
 
 export function ensureConfigDir(): void {
