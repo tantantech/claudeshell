@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://nesh.sh/logo.svg" alt="Nesh" width="120" />
+  <img src="assets/logo.svg" alt="Nesh" width="120" />
 </p>
 
 <h1 align="center">Nesh</h1>
@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/nesh"><img src="https://img.shields.io/npm/v/nesh?color=orange&label=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/nesh"><img src="https://img.shields.io/npm/dm/nesh?color=blue" alt="downloads" /></a>
-  <a href="https://github.com/tantantech/nesh/actions"><img src="https://img.shields.io/github/actions/workflow/status/tantantech/nesh/ci.yml?label=tests" alt="tests" /></a>
+  <a href="https://github.com/tantantech/nesh/actions"><img src="https://img.shields.io/github/actions/workflow/status/tantantech/nesh/release.yml?label=build" alt="tests" /></a>
   <a href="https://nesh.sh"><img src="https://img.shields.io/badge/docs-nesh.sh-blueviolet" alt="docs" /></a>
   <a href="https://github.com/tantantech/nesh/blob/main/LICENSE"><img src="https://img.shields.io/github/license/tantantech/nesh" alt="license" /></a>
 </p>
@@ -21,7 +21,7 @@
 <br />
 
 <p align="center">
-  <img src="https://nesh.sh/demo.gif" alt="Nesh in action" width="700" />
+  <img src="assets/demo.gif" alt="Nesh in action" width="700" />
 </p>
 
 ---
