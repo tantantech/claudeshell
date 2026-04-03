@@ -1,8 +1,9 @@
 import * as readline from 'node:readline'
 import pc from 'picocolors'
-import { loadConfig, resolveApiKey } from './config.js'
+import { loadConfig, resolveApiKey, resolveProviderKey } from './config.js'
 import { buildResumeOptions, extractSessionId } from './session.js'
 import { extractUsage } from './cost.js'
+import { getProviderForModel, getProvider } from './providers/index.js'
 import type { LastError, AIResult, UsageInfo, NeshPermission } from './types.js'
 import type { ProjectContext } from './context.js'
 
@@ -70,7 +71,7 @@ function mapSDKError(errorType: string): string {
   }
 }
 
-function buildExplainPrompt(lastError: LastError): string {
+export function buildExplainPrompt(lastError: LastError): string {
   return [
     'The following command failed:',
     `\`${lastError.command}\``,
@@ -203,6 +204,12 @@ export async function executeAI(
   const { cwd, lastError, abortController, callbacks } = options
   const emptyResult: AIResult = { sessionId: undefined, usage: undefined }
 
+  // Route non-Claude models through the provider system
+  const modelInfo = options.model ? getProviderForModel(options.model) : undefined
+  if (modelInfo && modelInfo.providerName !== 'claude') {
+    return executeProviderAI(prompt, options, modelInfo)
+  }
+
   const config = loadConfig()
   const apiKey = resolveApiKey(config)
   if (!apiKey) {
@@ -305,4 +312,74 @@ export async function executeAI(
   }
 
   return { sessionId: capturedSessionId, usage: capturedUsage }
+}
+
+async function executeProviderAI(
+  prompt: string,
+  options: {
+    readonly cwd: string
+    readonly lastError: LastError | undefined
+    readonly abortController: AbortController
+    readonly callbacks: AICallbacks
+    readonly sessionId?: string
+    readonly model?: string
+    readonly permissionMode?: NeshPermission
+    readonly projectContext?: ProjectContext | null
+  },
+  modelInfo: { readonly providerName: string; readonly modelId: string; readonly displayName: string },
+): Promise<AIResult> {
+  const { abortController, callbacks } = options
+  const emptyResult: AIResult = { sessionId: undefined, usage: undefined }
+
+  try {
+    process.stderr.write(pc.dim('Thinking...\r'))
+
+    const provider = await getProvider(modelInfo.providerName)
+    const systemPrompt = buildSystemPrompt(options.cwd, options.projectContext)
+
+    let firstText = true
+    let capturedUsage: UsageInfo | undefined
+
+    const stream = provider.query(prompt, {
+      model: modelInfo.modelId,
+      sessionId: options.sessionId,
+      abortController,
+      systemPrompt,
+      permissionMode: options.permissionMode,
+      cwd: options.cwd,
+      lastError: options.lastError,
+      projectContext: options.projectContext,
+    })
+
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'text':
+          if (firstText) {
+            process.stderr.write('             \r')
+            firstText = false
+          }
+          callbacks.onText(event.content)
+          break
+        case 'tool_start':
+          callbacks.onToolStart(event.name)
+          break
+        case 'tool_end':
+          callbacks.onToolEnd(event.name, event.result)
+          break
+        case 'done':
+          if (event.usage) {
+            capturedUsage = event.usage
+          }
+          break
+      }
+    }
+
+    return { sessionId: undefined, usage: capturedUsage }
+  } catch (error: unknown) {
+    if (isAbortError(error) || abortController.signal.aborted) {
+      return emptyResult
+    }
+    callbacks.onError(classifyError(error))
+    return emptyResult
+  }
 }

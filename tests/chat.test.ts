@@ -56,10 +56,10 @@ describe('parseSlashCommand', () => {
     })
   })
 
-  it('returns unknown for /model with no argument', () => {
+  it('returns model with empty string for /model with no argument (interactive picker)', () => {
     expect(parseSlashCommand('/model')).toEqual({
-      type: 'unknown',
-      input: '/model',
+      type: 'model',
+      model: '',
     })
   })
 

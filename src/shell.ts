@@ -5,6 +5,8 @@ import process from 'node:process'
 import { buildPrompt } from './prompt.js'
 import { classifyInput } from './classify.js'
 import { executeCd, executeExport, executeTheme } from './builtins.js'
+import { executeModelSwitcher } from './model-switcher.js'
+import { executeKeyManager } from './key-manager.js'
 import { executeCommand } from './passthrough.js'
 import { executeAI, buildFixPrompt, parseFixResponse } from './ai.js'
 import { createRenderer, renderCostFooter } from './renderer.js'
@@ -142,6 +144,17 @@ export async function runShell(): Promise<void> {
                 saveConfig({ ...config, prompt_template: selected })
                 process.stdout.write(`Theme set to: ${selected}\n`)
               }
+              break
+            }
+            case 'model': {
+              const selectedModel = await executeModelSwitcher(rl, state.currentModel)
+              if (selectedModel) {
+                state = { ...state, currentModel: selectedModel }
+              }
+              break
+            }
+            case 'keys': {
+              await executeKeyManager(rl)
               break
             }
             case 'exit':

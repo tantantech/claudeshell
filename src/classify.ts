@@ -1,6 +1,7 @@
+import { getProviderForModel } from './providers/index.js'
 import type { InputAction, BuiltinName } from './types.js'
 
-const BUILTINS: ReadonlySet<string> = new Set(['cd', 'exit', 'quit', 'clear', 'export', 'theme'])
+const BUILTINS: ReadonlySet<string> = new Set(['cd', 'exit', 'quit', 'clear', 'export', 'theme', 'model', 'keys'])
 
 const MODEL_FLAGS: Readonly<Record<string, string>> = {
   '--haiku': 'claude-haiku-4-5-20251001',
@@ -9,12 +10,25 @@ const MODEL_FLAGS: Readonly<Record<string, string>> = {
 }
 
 function extractModelFlag(prompt: string): { readonly model?: string; readonly cleanPrompt: string } {
-  const spaceIdx = prompt.indexOf(' ')
-  const firstToken = spaceIdx === -1 ? prompt : prompt.slice(0, spaceIdx)
+  const tokens = prompt.split(/\s+/)
+  const firstToken = tokens[0] ?? ''
+
+  // Handle --model <name> flag (two tokens)
+  if (firstToken === '--model' && tokens.length >= 2) {
+    const modelName = tokens[1]
+    const rest = tokens.slice(2).join(' ').trim()
+    // Resolve through provider registry
+    const resolved = getProviderForModel(modelName)
+    return { model: resolved?.modelId ?? modelName, cleanPrompt: rest }
+  }
+
+  // Handle shorthand flags like --haiku, --sonnet, --opus
   const mapped = MODEL_FLAGS[firstToken]
   if (mapped) {
-    return { model: mapped, cleanPrompt: spaceIdx === -1 ? '' : prompt.slice(spaceIdx + 1).trim() }
+    const rest = tokens.slice(1).join(' ').trim()
+    return { model: mapped, cleanPrompt: rest }
   }
+
   return { cleanPrompt: prompt }
 }
 

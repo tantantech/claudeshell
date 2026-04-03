@@ -4,6 +4,8 @@ import { executeAI } from './ai.js'
 import { createRenderer, renderCostFooter } from './renderer.js'
 import { createSessionId } from './session.js'
 import { EMPTY_ACCUMULATOR, accumulate } from './cost.js'
+import { executeModelSwitcher } from './model-switcher.js'
+import { getProviderForModel } from './providers/index.js'
 import type { ShellState, UsageInfo } from './types.js'
 import type { NeshConfig } from './config.js'
 
@@ -35,7 +37,12 @@ export function parseSlashCommand(raw: string): SlashCommandResult {
   if (input.startsWith('/model')) {
     const arg = input.slice('/model'.length).trim()
     if (!arg) {
-      return { type: 'unknown', input }
+      return { type: 'model', model: '' }  // Empty means show picker
+    }
+    // Check provider registry first, then legacy shorthands
+    const providerEntry = getProviderForModel(arg)
+    if (providerEntry) {
+      return { type: 'model', model: providerEntry.modelId }
     }
     const resolved = MODEL_SHORTHANDS[arg] ?? arg
     return { type: 'model', model: resolved }
@@ -104,8 +111,18 @@ export async function runChatMode(params: {
         }
 
         case 'model':
-          state = { ...state, currentModel: cmd.model }
-          process.stderr.write(pc.dim(`Model set to ${cmd.model}\n`))
+          if (cmd.model === '') {
+            // Interactive picker
+            const selected = await executeModelSwitcher(rl, state.currentModel)
+            if (selected) {
+              state = { ...state, currentModel: selected }
+            }
+          } else {
+            state = { ...state, currentModel: cmd.model }
+            const info = getProviderForModel(cmd.model)
+            const displayLabel = info?.displayName ?? cmd.model
+            process.stderr.write(pc.dim(`Model set to ${displayLabel}\n`))
+          }
           continue
 
         case 'permissions_show':
