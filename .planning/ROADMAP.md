@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 MVP** - Phases 1-3 (shipped)
 - 🚧 **v2.0 Sessions & Power Features** - Phases 4-7 (in progress)
+- 📋 **v3.0 Oh-My-Nesh Plugin Ecosystem** - Phases 8-12 (planned)
 
 ## Phases
 
@@ -61,20 +62,8 @@ Plans:
 
 </details>
 
-### v2.0 Sessions & Power Features (In Progress)
-
-**Milestone Goal:** Make ClaudeShell a power-user tool with persistent AI context, pipe-friendly output, smart error recovery, and project awareness.
-
-**Phase Numbering:**
-- Integer phases (4, 5, 6, 7): Planned milestone work
-- Decimal phases (4.1, 5.1): Urgent insertions (marked with INSERTED)
-
-- [ ] **Phase 4: Sessions & Chat Mode** - Persistent AI context, chat mode, model selection, and cost visibility
-- [ ] **Phase 5: Pipe & Unix Integration** - Pipe-friendly AI, automatic error recovery, and configurable prefix
-- [ ] **Phase 6: Context & Permissions** - Project awareness, permission control, and per-project config
-- [x] **Phase 7: PTY & Polish** - Interactive command support via PTY passthrough (completed 2026-04-02)
-
-## Phase Details
+<details>
+<summary>v2.0 Sessions & Power Features (Phases 4-7)</summary>
 
 ### Phase 4: Sessions & Chat Mode
 **Goal**: Users can have continuous AI conversations that remember context, switch between shell and chat modes instantly, choose their model, and see what each interaction costs
@@ -139,18 +128,99 @@ Plans:
 - [x] 07-01-PLAN.md — Interactive command detection module, types/config extension, unit tests
 - [x] 07-02-PLAN.md — Shell REPL integration with readline pause/resume and human verification
 
+</details>
+
+### v3.0 Oh-My-Nesh Plugin Ecosystem (Planned)
+
+**Milestone Goal:** Make Nesh a full oh-my-zsh replacement by building a native TypeScript plugin framework with all ~300 OMZ plugins ported, organized into user profiles, and cross-platform.
+
+**Phase Numbering:**
+- Integer phases (8, 9, 10, 11, 12): Planned milestone work
+- Decimal phases (8.1, 9.1): Urgent insertions (marked with INSERTED)
+
+- [ ] **Phase 8: Plugin Engine & Alias System** - Core plugin framework with loader, registry, hooks, error boundaries, and alias expansion proven with git plugin
+- [ ] **Phase 9: Completion Engine & Utility Plugins** - Tab completion framework with Fig-style specs, bash fallback, and top-20 command completions plus utility plugin ports
+- [ ] **Phase 10: Auto-Suggestions & History Search** - Fish-like ghost text from history with keypress engine, debounce, and sensitive pattern filtering
+- [ ] **Phase 11: Syntax Highlighting, Profiles & Plugin Management** - Real-time input coloring, curated plugin profiles, full plugin CLI with git install and interactive menus
+- [ ] **Phase 12: Batch Port, Migration & Discovery** - Remaining ~250 plugin ports, OMZ migration detector, AI-enhanced plugin discovery, and theme integration
+
+## Phase Details
+
+### Phase 8: Plugin Engine & Alias System
+**Goal**: Users can enable plugins that register aliases, and the shell expands those aliases transparently -- proven end-to-end with the git plugin (most popular OMZ plugin)
+**Depends on**: Phase 7 (v2.0 complete)
+**Requirements**: PLUG-01, PLUG-02, PLUG-03, PLUG-04, PLUG-05, PLUG-06, PLUG-07, PLUG-08, ALIAS-01, ALIAS-02, ALIAS-03, ALIAS-04, ALIAS-05, ALIAS-06, PORT-02
+**Success Criteria** (what must be TRUE):
+  1. User can enable the git plugin in config, start Nesh, and type `gst` to run `git status` -- alias expansion works transparently in the command pipeline
+  2. Shell startup with 30+ enabled plugins completes in under 300ms (two-phase loading: sync alias data <50ms, async init deferred)
+  3. A crashing plugin never crashes the shell -- user sees a warning and continues working; `nesh --safe` starts with zero plugins for recovery
+  4. User aliases in config always override plugin aliases; when two plugins define the same alias, user sees a collision warning
+  5. User can run `nesh aliases` to see all active aliases grouped by source plugin, and can disable specific aliases per-plugin in config
+**Plans**: TBD
+
+### Phase 9: Completion Engine & Utility Plugins
+**Goal**: Users get context-aware Tab completions for common developer tools and can use utility plugins like extract, copypath, and sudo toggle
+**Depends on**: Phase 8
+**Requirements**: COMP-01, COMP-02, COMP-03, COMP-04, COMP-05, PORT-03, PORT-04
+**Success Criteria** (what must be TRUE):
+  1. User can press Tab after `git ch` and see branch-aware completions; the top 20 commands (git, docker, npm, kubectl, ssh, aws, etc.) have hand-crafted completions
+  2. Completion providers are async with a 1-second timeout -- slow providers never block typing; results are cached for repeated queries
+  3. User can install a plugin that provides Fig-style declarative completion specs, and those specs drive Tab behavior for that command
+  4. When no native completion is available, Tab falls back to bash/zsh compgen so the user always gets some completion
+  5. Utility plugins work cross-platform: extract handles common archives, sudo toggle prepends sudo with a keystroke, copypath copies the current path
+**Plans**: TBD
+
+### Phase 10: Auto-Suggestions & History Search
+**Goal**: Users see fish-like ghost text suggestions from history as they type, accepted with right-arrow
+**Depends on**: Phase 9
+**Requirements**: SUGG-01, SUGG-02, SUGG-03, SUGG-04, SUGG-05
+**Success Criteria** (what must be TRUE):
+  1. As user types, dim ghost text appears showing the most recent matching history entry; pressing right-arrow accepts the full suggestion
+  2. Typing at normal speed (>5 chars/sec) feels instant with no visible lag -- keypress handling is debounced appropriately
+  3. Suggestions never expose commands containing API keys, passwords, or tokens -- sensitive patterns are filtered from history search
+  4. User can independently disable auto-suggestions in config without affecting other features
+**Plans**: TBD
+
+### Phase 11: Syntax Highlighting, Profiles & Plugin Management
+**Goal**: Users see real-time colored input as they type, can select a curated plugin profile at first run, and manage plugins through an interactive CLI
+**Depends on**: Phase 10
+**Requirements**: HLGT-01, HLGT-02, HLGT-03, HLGT-04, PROF-01, PROF-02, PROF-03, PROF-04, MGMT-01, MGMT-02, MGMT-03, MGMT-04, MGMT-05, MGMT-06, PORT-06
+**Success Criteria** (what must be TRUE):
+  1. As user types a command, valid commands appear green, invalid ones red, strings are quoted in yellow, and flags are colored distinctly -- all without affecting rl.line (output-only rendering)
+  2. At first run (or via `plugin profile`), user picks from an interactive menu of profiles (core, developer, devops, cloud, ai-engineer) and gets a curated set of plugins enabled automatically; profiles are additive
+  3. User can run `plugin install user/repo` to install from git, `plugin enable/disable` to toggle, `plugin search` to find, and `plugin doctor` to diagnose -- all without restarting the shell (hot-reload)
+  4. All plugin configuration uses interactive selection menus consistent with existing `theme` and `model` builtins
+  5. Syntax highlighting is independently disablable in config; rendering stays within a 16ms frame budget to prevent typing lag
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 12: Batch Port, Migration & Discovery
+**Goal**: All ~300 OMZ plugins are available in Nesh, existing OMZ users can migrate seamlessly, and AI helps users discover relevant plugins
+**Depends on**: Phase 11
+**Requirements**: PORT-01, PORT-05, MIG-01, MIG-02, MIG-03
+**Success Criteria** (what must be TRUE):
+  1. All ~300 oh-my-zsh plugins have Nesh equivalents with matching user-facing behavior -- alias, completion, utility, and hook/widget categories all ported
+  2. User with an existing oh-my-zsh installation can run migration detection and see which of their OMZ plugins have Nesh equivalents, with enable suggestions
+  3. User can describe what they need in natural language (e.g., "I work with kubernetes and terraform") and AI suggests relevant plugins from the catalog
+  4. Plugin themes integrate with Nesh's existing prompt template system via the segment registration API
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 4 -> 5 -> 6 -> 7
-(Phases 5 and 6 both depend on Phase 4 but not on each other; Phase 7 depends on both)
+Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Shell Foundation | v1.0 | 4/4 | Complete | - |
 | 2. AI Integration | v1.0 | 3/3 | Complete | - |
 | 3. Distribution & Platform | v1.0 | 2/2 | Complete | - |
-| 4. Sessions & Chat Mode | v2.0 | 0/3 | Planned | - |
-| 5. Pipe & Unix Integration | v2.0 | 1/3 | In Progress | - |
-| 6. Context & Permissions | v2.0 | 0/3 | Planned | - |
-| 7. PTY & Polish | v2.0 | 2/2 | Complete   | 2026-04-02 |
+| 4. Sessions & Chat Mode | v2.0 | 3/3 | Complete | - |
+| 5. Pipe & Unix Integration | v2.0 | 3/3 | Complete | - |
+| 6. Context & Permissions | v2.0 | 3/3 | Complete | - |
+| 7. PTY & Polish | v2.0 | 2/2 | Complete | 2026-04-02 |
+| 8. Plugin Engine & Alias System | v3.0 | 0/? | Not started | - |
+| 9. Completion Engine & Utility Plugins | v3.0 | 0/? | Not started | - |
+| 10. Auto-Suggestions & History Search | v3.0 | 0/? | Not started | - |
+| 11. Syntax Highlighting, Profiles & Plugin Management | v3.0 | 0/? | Not started | - |
+| 12. Batch Port, Migration & Discovery | v3.0 | 0/? | Not started | - |

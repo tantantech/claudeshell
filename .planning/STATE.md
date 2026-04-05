@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Oh-My-Nesh Plugin Ecosystem
-status: defining-requirements
+status: ready-to-plan
 stopped_at: null
-last_updated: "2026-04-03T09:00:00.000Z"
+last_updated: "2026-04-03T11:00:00.000Z"
 last_activity: 2026-04-03
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,48 +21,40 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Running AI-assisted commands feels as natural and fast as running normal shell commands
-**Current focus:** Defining requirements for v3.0
+**Current focus:** Phase 8 - Plugin Engine & Alias System
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-03 — Milestone v3.0 started
+Phase: 8 of 12 (Plugin Engine & Alias System)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-04-03 — Roadmap created for v3.0 (Phases 8-12)
+
+Progress: [██████████████░░░░░░] 70% (v1.0 + v2.0 complete, v3.0 0/5 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9 (from v1.0)
+- Total plans completed: 20 (v1.0: 9, v2.0: 11)
 - Average duration: ~3 min/plan
-- Total execution time: ~25 min
+- Total execution time: ~55 min
 
-**By Phase (v1.0):**
+**By Phase (recent):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Shell Foundation | 4 | 12min | 3min |
-| 2. AI Integration | 3 | 8min | 3min |
-| 3. Distribution & Platform | 2 | 5min | 3min |
+| Phase 04 P01-P03 | 3 | 8min | 3min |
+| Phase 05 P01-P03 | 3 | 9min | 3min |
+| Phase 06 P01-P03 | 3 | 12min | 4min |
+| Phase 07 P01-P02 | 2 | 4min | 2min |
 
 **Recent Trend:**
 
-- Last 5 plans: 3min, 2min, 3min, 3min, 2min
+- Last 5 plans: 3min, 6min, 3min, 2min, 2min
 - Trend: Stable
 
 *Updated after each plan completion*
-| Phase 04 P01 | 3min | 2 tasks | 6 files |
-| Phase 04 P02 | 3min | 2 tasks | 4 files |
-| Phase 04 P03 | 2min | 3 tasks | 3 files |
-| Phase 05 P01 | 2min | 2 tasks | 3 files |
-| Phase 05 P02 | 3min | 2 tasks | 4 files |
-| Phase 05 P03 | 4min | 2 tasks | 5 files |
-| Phase 06-context-permissions P01 | 3min | 2 tasks | 6 files |
-| Phase 06-context-permissions P03 | 3min | 2 tasks | 3 files |
-| Phase 06 P02 | 6min | 2 tasks | 4 files |
-| Phase 07-pty-polish P01 | 2min | 2 tasks | 5 files |
-| Phase 07 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -71,22 +63,13 @@ Last activity: 2026-04-03 — Milestone v3.0 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v2.0 Roadmap]: Sessions first (Phase 4) -- session ID is the shared state primitive that permissions, context, and cost attach to
-- [v2.0 Roadmap]: PTY deferred to last (Phase 7) -- highest risk (node-pty native build), lowest user coverage
-- [v2.0 Research]: 9 of 10 v2 features need zero new dependencies; primarily integration/wiring work
-- [v1.0]: `a` prefix collision risk -- configurable prefix addressed in Phase 5 (CFG-01)
-- [Phase 04]: Session cost uses 4dp precision for sub-dollar amounts; per-message uses 2dp threshold at $0.01
-- [Phase 04]: extractUsage takes plain object shape (not SDK type) for testability and decoupling
-- [Phase 04]: Model flags parsed as first token after 'a ' prefix for simplicity
-- [Phase 04]: renderCostFooter is standalone export, not part of Renderer interface -- shell.ts controls display
-- [Phase 04]: MODEL_SHORTHANDS in chat.ts; chat history swapped via rl.history; single-shot shows per-msg cost only
-- [Phase 05]: Skip auto-fix AI call when no API key configured to avoid blocking in CI/test
-- [Phase 05]: Prefix defaults to 'a' via nullish coalescing; validation rejects whitespace to prevent ambiguous parsing
-- [Phase 06]: ProjectContext uses first-match primary type from ordered marker list; only package.json parsed for metadata
-- [Phase 06-context-permissions]: refreshProjectState is module-private helper; auto-fix uses permissionMode auto; cd preserves permissionMode if no project override
-- [Phase 06]: Non-TTY stdin forces ask mode to auto to prevent hanging in piped mode
-- [Phase 07-pty-polish]: Pipes always reject interactive detection per D-09 -- simplest safe heuristic
-- [Phase 07]: No explicit setRawMode calls -- readline manages raw mode internally via pause/resume
+- [v3.0]: OMZ plugins in TypeScript (not zsh subprocess) for cross-platform support
+- [v3.0]: Bundled + git installable plugins (core built-in, long tail from git repos)
+- [v3.0]: Profile-based defaults instead of configuring 300 plugins individually
+- [v3.0]: Two-phase startup mandatory (sync alias <50ms, async init deferred)
+- [v3.0]: rl.line must ALWAYS remain plain text (output-only rendering for highlighting/suggestions)
+- [v3.0]: All plugin config uses interactive selection menus (like theme/model builtins)
+- [v3.0]: Error boundaries on ALL plugin lifecycle calls from Phase 8
 
 ### Pending Todos
 
@@ -94,8 +77,9 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Research]: Verify exact SDK field names for `SDKResultMessage` cost/token fields before implementing cost.ts (MEDIUM confidence)
-- [Research]: Verify `session_id` field and `resume` option behavior against installed SDK v0.2.88
+- [Research]: readline keypress timing (rl.line/rl.cursor update order) needs empirical testing on Node 22+
+- [Research]: emphasize bundle size impact on tsdown bundle -- lazy-load if >500KB
+- [Research]: Fig completion spec format -- define own TS types, don't depend on their package
 
 ### Quick Tasks Completed
 
@@ -108,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T10:37:00Z
-Stopped at: Completed 260403-isu-PLAN.md
+Last session: 2026-04-03
+Stopped at: Roadmap created for v3.0 milestone (Phases 8-12)
 Resume file: None

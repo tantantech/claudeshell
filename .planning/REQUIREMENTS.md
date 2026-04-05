@@ -121,59 +121,59 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | TBD | Pending |
-| PLUG-02 | TBD | Pending |
-| PLUG-03 | TBD | Pending |
-| PLUG-04 | TBD | Pending |
-| PLUG-05 | TBD | Pending |
-| PLUG-06 | TBD | Pending |
-| PLUG-07 | TBD | Pending |
-| PLUG-08 | TBD | Pending |
-| ALIAS-01 | TBD | Pending |
-| ALIAS-02 | TBD | Pending |
-| ALIAS-03 | TBD | Pending |
-| ALIAS-04 | TBD | Pending |
-| ALIAS-05 | TBD | Pending |
-| ALIAS-06 | TBD | Pending |
-| COMP-01 | TBD | Pending |
-| COMP-02 | TBD | Pending |
-| COMP-03 | TBD | Pending |
-| COMP-04 | TBD | Pending |
-| COMP-05 | TBD | Pending |
-| SUGG-01 | TBD | Pending |
-| SUGG-02 | TBD | Pending |
-| SUGG-03 | TBD | Pending |
-| SUGG-04 | TBD | Pending |
-| SUGG-05 | TBD | Pending |
-| HLGT-01 | TBD | Pending |
-| HLGT-02 | TBD | Pending |
-| HLGT-03 | TBD | Pending |
-| HLGT-04 | TBD | Pending |
-| MGMT-01 | TBD | Pending |
-| MGMT-02 | TBD | Pending |
-| MGMT-03 | TBD | Pending |
-| MGMT-04 | TBD | Pending |
-| MGMT-05 | TBD | Pending |
-| MGMT-06 | TBD | Pending |
-| PROF-01 | TBD | Pending |
-| PROF-02 | TBD | Pending |
-| PROF-03 | TBD | Pending |
-| PROF-04 | TBD | Pending |
-| PORT-01 | TBD | Pending |
-| PORT-02 | TBD | Pending |
-| PORT-03 | TBD | Pending |
-| PORT-04 | TBD | Pending |
-| PORT-05 | TBD | Pending |
-| PORT-06 | TBD | Pending |
-| MIG-01 | TBD | Pending |
-| MIG-02 | TBD | Pending |
-| MIG-03 | TBD | Pending |
+| PLUG-01 | Phase 8 | Pending |
+| PLUG-02 | Phase 8 | Pending |
+| PLUG-03 | Phase 8 | Pending |
+| PLUG-04 | Phase 8 | Pending |
+| PLUG-05 | Phase 8 | Pending |
+| PLUG-06 | Phase 8 | Pending |
+| PLUG-07 | Phase 8 | Pending |
+| PLUG-08 | Phase 8 | Pending |
+| ALIAS-01 | Phase 8 | Pending |
+| ALIAS-02 | Phase 8 | Pending |
+| ALIAS-03 | Phase 8 | Pending |
+| ALIAS-04 | Phase 8 | Pending |
+| ALIAS-05 | Phase 8 | Pending |
+| ALIAS-06 | Phase 8 | Pending |
+| COMP-01 | Phase 9 | Pending |
+| COMP-02 | Phase 9 | Pending |
+| COMP-03 | Phase 9 | Pending |
+| COMP-04 | Phase 9 | Pending |
+| COMP-05 | Phase 9 | Pending |
+| SUGG-01 | Phase 10 | Pending |
+| SUGG-02 | Phase 10 | Pending |
+| SUGG-03 | Phase 10 | Pending |
+| SUGG-04 | Phase 10 | Pending |
+| SUGG-05 | Phase 10 | Pending |
+| HLGT-01 | Phase 11 | Pending |
+| HLGT-02 | Phase 11 | Pending |
+| HLGT-03 | Phase 11 | Pending |
+| HLGT-04 | Phase 11 | Pending |
+| MGMT-01 | Phase 11 | Pending |
+| MGMT-02 | Phase 11 | Pending |
+| MGMT-03 | Phase 11 | Pending |
+| MGMT-04 | Phase 11 | Pending |
+| MGMT-05 | Phase 11 | Pending |
+| MGMT-06 | Phase 11 | Pending |
+| PROF-01 | Phase 11 | Pending |
+| PROF-02 | Phase 11 | Pending |
+| PROF-03 | Phase 11 | Pending |
+| PROF-04 | Phase 11 | Pending |
+| PORT-01 | Phase 12 | Pending |
+| PORT-02 | Phase 8 | Pending |
+| PORT-03 | Phase 9 | Pending |
+| PORT-04 | Phase 9 | Pending |
+| PORT-05 | Phase 12 | Pending |
+| PORT-06 | Phase 11 | Pending |
+| MIG-01 | Phase 12 | Pending |
+| MIG-02 | Phase 12 | Pending |
+| MIG-03 | Phase 12 | Pending |
 
 **Coverage:**
-- v3.0 requirements: 42 total
-- Mapped to phases: 0 (awaiting roadmap)
-- Unmapped: 42
+- v3.0 requirements: 47 total
+- Mapped to phases: 47
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-05 after initial definition*
+*Last updated: 2026-04-03 after roadmap creation (traceability added)*
