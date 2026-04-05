@@ -75,6 +75,7 @@ describe('plugin-manager', () => {
   let output: string
 
   beforeEach(() => {
+    vi.clearAllMocks()
     output = ''
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
       output += String(chunk)
