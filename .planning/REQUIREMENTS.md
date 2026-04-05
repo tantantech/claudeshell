@@ -50,11 +50,11 @@
 
 ### Plugin Management
 
-- [ ] **MGMT-01**: `plugin` builtin command with subcommands: list, enable, disable, install, update, remove, search, doctor, times
+- [x] **MGMT-01**: `plugin` builtin command with subcommands: list, enable, disable, install, update, remove, search, doctor, times
 - [x] **MGMT-02**: Install plugins from git repos (`plugin install zsh-users/zsh-autosuggestions`) stored in ~/.nesh/plugins/
-- [ ] **MGMT-03**: Plugin search across bundled catalog and popular community plugins
-- [ ] **MGMT-04**: `plugin doctor` shows failed plugins, load times, and recommendations
-- [ ] **MGMT-05**: All plugin configuration uses interactive selection menus (like existing `theme` and `model` builtins)
+- [x] **MGMT-03**: Plugin search across bundled catalog and popular community plugins
+- [x] **MGMT-04**: `plugin doctor` shows failed plugins, load times, and recommendations
+- [x] **MGMT-05**: All plugin configuration uses interactive selection menus (like existing `theme` and `model` builtins)
 - [x] **MGMT-06**: No shell restart required after enable/disable/install — hot-reload in current session
 
 ### Profile System
@@ -149,11 +149,11 @@
 | HLGT-02 | Phase 11 | Complete |
 | HLGT-03 | Phase 11 | Complete |
 | HLGT-04 | Phase 11 | Complete |
-| MGMT-01 | Phase 11 | Pending |
+| MGMT-01 | Phase 11 | Complete |
 | MGMT-02 | Phase 11 | Complete |
-| MGMT-03 | Phase 11 | Pending |
-| MGMT-04 | Phase 11 | Pending |
-| MGMT-05 | Phase 11 | Pending |
+| MGMT-03 | Phase 11 | Complete |
+| MGMT-04 | Phase 11 | Complete |
+| MGMT-05 | Phase 11 | Complete |
 | MGMT-06 | Phase 11 | Complete |
 | PROF-01 | Phase 11 | Complete |
 | PROF-02 | Phase 11 | Pending |
