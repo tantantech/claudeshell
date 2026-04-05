@@ -227,11 +227,11 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [x] 11-01-PLAN.md — Syntax highlighting tokenizer, command cache, and ANSI renderer
-- [x] 11-02-PLAN.md — Profile definitions, external plugin loader, platform filter, highlighting config
-- [x] 11-03-PLAN.md — Plugin management CLI core subcommands
-- [x] 11-04-PLAN.md — Git plugin install/update/remove and hot-reload
-- [ ] 11-05-PLAN.md — Shell integration: wiring highlighting, first-run profile, plugin builtin
+- [ ] 12-01-PLAN.md — Plugin catalog data file and batch alias plugin generation
+- [ ] 12-02-PLAN.md — Prompt segment registration API and template integration
+- [ ] 12-03-PLAN.md — Hook plugins and lazy-loading plugin index refactor
+- [ ] 12-04-PLAN.md — OMZ migration detector and AI-enhanced plugin discovery
+- [ ] 12-05-PLAN.md — Shell integration: CLI wiring, startup refactor, profile updates
 
 ## Progress
 
@@ -251,4 +251,4 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 9. Completion Engine & Utility Plugins | v3.0 | 0/3 | Planned | - |
 | 10. Auto-Suggestions & History Search | v3.0 | 2/2 | Complete    | 2026-04-05 |
 | 11. Syntax Highlighting, Profiles & Plugin Management | v3.0 | 5/5 | Complete    | 2026-04-05 |
-| 12. Batch Port, Migration & Discovery | v3.0 | 0/? | Not started | - |
+| 12. Batch Port, Migration & Discovery | v3.0 | 0/5 | Planned | - |
