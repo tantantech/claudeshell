@@ -105,9 +105,8 @@ async function executeTemplateSelection(rl: readline.Interface): Promise<ThemeRe
 
   for (let i = 0; i < TEMPLATES.length; i++) {
     const t = TEMPLATES[i]
-    const nerdNote = t.requiresNerdFont ? ' (requires Nerd Font)' : ''
     const preview = buildPromptFromTemplate(t, cwd, homedir)
-    process.stdout.write(`  [${i + 1}] ${t.label} \u2014 ${t.description}${nerdNote}\n`)
+    process.stdout.write(`  [${i + 1}] ${t.label} \u2014 ${t.description}\n`)
     process.stdout.write(`      Preview: ${preview}\n\n`)
   }
 
