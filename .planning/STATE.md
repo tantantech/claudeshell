@@ -100,6 +100,7 @@ None yet.
 | 260402-vmf | Complete rebrand from claudeshell to nesh | 2026-04-02 | 0cd2553 | [260402-vmf-rebrand-project-from-claudeshell-to-nesh](./quick/260402-vmf-rebrand-project-from-claudeshell-to-nesh/) |
 | 260402-vxu | Deploy nesh to Railway and get DNS records for nesh.sh | 2026-04-02 | — | [260402-vxu-deploy-nesh-to-railway-and-get-dns-recor](./quick/260402-vxu-deploy-nesh-to-railway-and-get-dns-recor/) |
 | 260403-isu | Build interactive settings menu with persistent configuration | 2026-04-03 | b08bff5 | [260403-isu-build-interactive-settings-menu-with-per](./quick/260403-isu-build-interactive-settings-menu-with-per/) |
+| 260405-i3b | Integrate Powerlevel10k themes, segments, and config wizard | 2026-04-05 | fe5164c | [260405-i3b-integrate-powerlevel10k-themes-segments-](./quick/260405-i3b-integrate-powerlevel10k-themes-segments-/) |
 
 ## Session Continuity
 
