@@ -101,6 +101,57 @@ describe('loadPluginsPhase2', () => {
   })
 })
 
+describe('platform filtering', () => {
+  it('includes plugin with no platform field', () => {
+    const p = makePlugin('noplat')
+
+    const { enabledPlugins } = loadPluginsPhase1(
+      { enabled: ['noplat'] },
+      [p],
+    )
+
+    expect(enabledPlugins.map((x) => x.name)).toContain('noplat')
+  })
+
+  it('includes plugin with platform "all"', () => {
+    const p = makePlugin('allplat', { platform: 'all' })
+
+    const { enabledPlugins } = loadPluginsPhase1(
+      { enabled: ['allplat'] },
+      [p],
+    )
+
+    expect(enabledPlugins.map((x) => x.name)).toContain('allplat')
+  })
+
+  it('includes plugin with platform "macos" when process.platform is darwin', () => {
+    // On macOS CI/dev this test validates inclusion
+    if (process.platform !== 'darwin') return
+
+    const p = makePlugin('maconly', { platform: 'macos' })
+
+    const { enabledPlugins } = loadPluginsPhase1(
+      { enabled: ['maconly'] },
+      [p],
+    )
+
+    expect(enabledPlugins.map((x) => x.name)).toContain('maconly')
+  })
+
+  it('excludes plugin with platform "linux" when process.platform is darwin', () => {
+    if (process.platform !== 'darwin') return
+
+    const p = makePlugin('linuxonly', { platform: 'linux' })
+
+    const { enabledPlugins } = loadPluginsPhase1(
+      { enabled: ['linuxonly'] },
+      [p],
+    )
+
+    expect(enabledPlugins.map((x) => x.name)).not.toContain('linuxonly')
+  })
+})
+
 describe('git plugin', () => {
   it('has name "git", version "1.0.0", and at least 25 aliases', () => {
     expect(gitPlugin.name).toBe('git')

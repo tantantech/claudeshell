@@ -14,8 +14,15 @@ export function loadPluginsPhase1(
 ): Phase1Result {
   const enabledNames = new Set(config.enabled ?? [])
 
-  // Filter to only enabled plugins
-  const enabled = bundled.filter((p) => enabledNames.has(p.name))
+  // Platform check: skip plugins that don't match current OS
+  const platformOk = (p: PluginManifest): boolean =>
+    !p.platform ||
+    p.platform === 'all' ||
+    (p.platform === 'macos' && process.platform === 'darwin') ||
+    (p.platform === 'linux' && process.platform === 'linux')
+
+  // Filter to only enabled plugins that match platform
+  const enabled = bundled.filter((p) => enabledNames.has(p.name) && platformOk(p))
 
   // Sort by dependency order
   const { sorted, cycles } = topologicalSort(enabled)
