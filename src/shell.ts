@@ -23,6 +23,7 @@ import { loadPluginsPhase1, loadPluginsPhase2 } from './plugins/loader.js'
 import { dispatchHook, buildHookBus } from './plugins/hooks.js'
 import { BUNDLED_PLUGINS } from './plugins/index.js'
 import { createEmptyRegistry } from './plugins/registry.js'
+import { createCompletionEngine } from './completions/engine.js'
 import type { NeshConfig } from './config.js'
 import type { ProjectContext } from './context.js'
 import type { PluginRegistry } from './plugins/registry.js'
@@ -64,6 +65,8 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
     hookBus = buildHookBus(enabledPlugins)
   }
 
+  const completionEngine = createCompletionEngine(pluginRegistry)
+
   const historyLines = loadHistory(HISTORY_PATH)
 
   const rl = readline.createInterface({
@@ -72,6 +75,13 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
     history: [...historyLines] as string[],
     historySize: config.history_size ?? 10_000,
     terminal: true,
+    completer: async (line: string): Promise<[string[], string]> => {
+      try {
+        return await completionEngine.complete(line)
+      } catch {
+        return [[], line]
+      }
+    },
   })
 
   let state: ShellState = {
