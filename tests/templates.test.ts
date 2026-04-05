@@ -20,21 +20,22 @@ import { getGitBranch } from '../src/prompt.js'
 const mockedGetGitBranch = vi.mocked(getGitBranch)
 
 describe('TEMPLATES', () => {
-  it('contains exactly 5 templates', () => {
-    expect(TEMPLATES).toHaveLength(5)
+  it('contains exactly 9 templates', () => {
+    expect(TEMPLATES).toHaveLength(9)
   })
 
-  it('contains minimal, classic, powerline, hacker, pastel', () => {
+  it('contains all expected template names', () => {
     const names = TEMPLATES.map((t) => t.name)
-    expect(names).toEqual(['minimal', 'classic', 'powerline', 'hacker', 'pastel'])
+    expect(names).toEqual(['minimal', 'classic', 'powerline', 'hacker', 'pastel', 'rainbow', 'lean', 'classic-p10k', 'pure'])
   })
 
-  it('only powerline requires Nerd Font', () => {
+  it('powerline, rainbow, and classic-p10k require Nerd Font', () => {
+    const nerdFontThemes = new Set(['powerline', 'rainbow', 'classic-p10k'])
     for (const t of TEMPLATES) {
-      if (t.name === 'powerline') {
-        expect(t.requiresNerdFont).toBe(true)
+      if (nerdFontThemes.has(t.name)) {
+        expect(t.requiresNerdFont, `${t.name} should require Nerd Font`).toBe(true)
       } else {
-        expect(t.requiresNerdFont).toBe(false)
+        expect(t.requiresNerdFont, `${t.name} should not require Nerd Font`).toBe(false)
       }
     }
   })
@@ -97,9 +98,15 @@ describe('buildPromptFromTemplate', () => {
 
   it('all templates work without git branch', () => {
     mockedGetGitBranch.mockReturnValue('')
+    const themesWithNesh = new Set(['minimal', 'classic', 'powerline', 'hacker', 'pastel', 'rainbow', 'classic-p10k'])
     for (const t of TEMPLATES) {
       const result = buildPromptFromTemplate(t, '/tmp', '/Users/tal')
-      expect(result).toContain('nesh')
+      if (themesWithNesh.has(t.name)) {
+        expect(result, `${t.name} should contain 'nesh'`).toContain('nesh')
+      } else {
+        // lean and pure are ultra-minimal, no shell name
+        expect(result.length, `${t.name} should produce non-empty output`).toBeGreaterThan(0)
+      }
     }
   })
 

@@ -21,6 +21,8 @@ export interface NeshConfig {
   readonly interactive_commands?: readonly string[]
   readonly keys?: ProviderKeys
   readonly plugins?: PluginConfig
+  readonly prompt_segments?: readonly string[]
+  readonly prompt_icon_mode?: 'nerd-font' | 'unicode' | 'ascii'
 }
 
 const VALID_PERMISSIONS = ['auto', 'ask', 'deny'] as const
@@ -94,6 +96,8 @@ export function loadConfig(): NeshConfig {
       ...(Array.isArray(obj.interactive_commands) && obj.interactive_commands.every((x: unknown) => typeof x === 'string') ? { interactive_commands: obj.interactive_commands as readonly string[] } : {}),
       ...(validateKeys(obj.keys) ? { keys: obj.keys as ProviderKeys } : {}),
       ...(typeof obj.plugins === 'object' && obj.plugins !== null ? { plugins: validatePluginConfig(obj.plugins as Record<string, unknown>) } : {}),
+      ...(Array.isArray(obj.prompt_segments) && obj.prompt_segments.every((x: unknown) => typeof x === 'string') ? { prompt_segments: obj.prompt_segments as readonly string[] } : {}),
+      ...(typeof obj.prompt_icon_mode === 'string' && ['nerd-font', 'unicode', 'ascii'].includes(obj.prompt_icon_mode) ? { prompt_icon_mode: obj.prompt_icon_mode as 'nerd-font' | 'unicode' | 'ascii' } : {}),
     }
 
     return config

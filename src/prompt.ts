@@ -1,5 +1,17 @@
 import { execFileSync } from 'node:child_process'
 
+// Per-command tracking values (set by REPL loop before building prompt)
+export let lastExecStartMs: number | undefined
+export let lastExitCode: number | undefined
+
+export function setLastExecStart(ms: number | undefined): void {
+  lastExecStartMs = ms
+}
+
+export function setLastExitCode(code: number | undefined): void {
+  lastExitCode = code
+}
+
 // ANSI 256-color helpers
 const ESC = '\x1b'
 const RESET = `${ESC}[0m`

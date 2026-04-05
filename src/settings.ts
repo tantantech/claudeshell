@@ -4,6 +4,7 @@ import { executeTheme } from './builtins.js'
 import { executeModelSwitcher } from './model-switcher.js'
 import { executeKeyManager } from './key-manager.js'
 import { loadConfig, saveConfig } from './config.js'
+import { executePromptConfig } from './prompt-config.js'
 
 export interface SettingsResult {
   readonly templateName?: string
@@ -25,9 +26,10 @@ export async function executeSettings(
   process.stdout.write('  [3] API Keys\n')
   process.stdout.write('  [4] Prefix\n')
   process.stdout.write('  [5] Permissions\n')
-  process.stdout.write('  [6] History Size\n\n')
+  process.stdout.write('  [6] History Size\n')
+  process.stdout.write('  [7] Prompt Segments\n\n')
 
-  const answer = await rl.question('Select (1-6): ')
+  const answer = await rl.question('Select (1-7): ')
   const choice = parseInt(answer.trim(), 10)
 
   switch (choice) {
@@ -49,6 +51,10 @@ export async function executeSettings(
       return editPermissions(rl)
     case 6:
       return editHistorySize(rl)
+    case 7: {
+      await executePromptConfig(rl)
+      return {}
+    }
     default:
       process.stdout.write('Selection cancelled.\n')
       return {}
