@@ -60,9 +60,9 @@
 ### Profile System
 
 - [x] **PROF-01**: Curated plugin profiles: core, developer, devops, cloud, ai-engineer
-- [ ] **PROF-02**: Interactive profile selector at first run or via `plugin profile` command
+- [x] **PROF-02**: Interactive profile selector at first run or via `plugin profile` command
 - [x] **PROF-03**: Profiles are additive — enabling "devops" adds to "core", not replaces
-- [ ] **PROF-04**: Users can customize profiles after selection (add/remove individual plugins)
+- [x] **PROF-04**: Users can customize profiles after selection (add/remove individual plugins)
 
 ### Plugin Catalog (OMZ Port)
 
@@ -156,9 +156,9 @@
 | MGMT-05 | Phase 11 | Complete |
 | MGMT-06 | Phase 11 | Complete |
 | PROF-01 | Phase 11 | Complete |
-| PROF-02 | Phase 11 | Pending |
+| PROF-02 | Phase 11 | Complete |
 | PROF-03 | Phase 11 | Complete |
-| PROF-04 | Phase 11 | Pending |
+| PROF-04 | Phase 11 | Complete |
 | PORT-01 | Phase 12 | Pending |
 | PORT-02 | Phase 8 | Complete |
 | PORT-03 | Phase 9 | Complete |

@@ -141,7 +141,7 @@ Plans:
 - [ ] **Phase 8: Plugin Engine & Alias System** - Core plugin framework with loader, registry, hooks, error boundaries, and alias expansion proven with git plugin
 - [ ] **Phase 9: Completion Engine & Utility Plugins** - Tab completion framework with Fig-style specs, bash fallback, and top-20 command completions plus utility plugin ports
 - [x] **Phase 10: Auto-Suggestions & History Search** - Fish-like ghost text from history with keypress engine, debounce, and sensitive pattern filtering (completed 2026-04-05)
-- [ ] **Phase 11: Syntax Highlighting, Profiles & Plugin Management** - Real-time input coloring, curated plugin profiles, full plugin CLI with git install and interactive menus
+- [x] **Phase 11: Syntax Highlighting, Profiles & Plugin Management** - Real-time input coloring, curated plugin profiles, full plugin CLI with git install and interactive menus (completed 2026-04-05)
 - [ ] **Phase 12: Batch Port, Migration & Discovery** - Remaining ~250 plugin ports, OMZ migration detector, AI-enhanced plugin discovery, and theme integration
 
 ## Phase Details
@@ -205,14 +205,14 @@ Plans:
   3. User can run `plugin install user/repo` to install from git, `plugin enable/disable` to toggle, `plugin search` to find, and `plugin doctor` to diagnose -- all without restarting the shell (hot-reload)
   4. All plugin configuration uses interactive selection menus consistent with existing `theme` and `model` builtins
   5. Syntax highlighting is independently disablable in config; rendering stays within a 16ms frame budget to prevent typing lag
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 11-01-PLAN.md — Syntax highlighting tokenizer, command cache, and ANSI renderer
 - [x] 11-02-PLAN.md — Profile definitions, external plugin loader, platform filter, highlighting config
 - [x] 11-03-PLAN.md — Plugin management CLI core subcommands
 - [x] 11-04-PLAN.md — Git plugin install/update/remove and hot-reload
-- [ ] 11-05-PLAN.md — Shell integration: wiring highlighting, first-run profile, plugin builtin
+- [x] 11-05-PLAN.md — Shell integration: wiring highlighting, first-run profile, plugin builtin
 **UI hint**: yes
 
 ### Phase 12: Batch Port, Migration & Discovery
@@ -229,7 +229,7 @@ Plans:
 Plans:
 - [x] 11-01-PLAN.md — Syntax highlighting tokenizer, command cache, and ANSI renderer
 - [x] 11-02-PLAN.md — Profile definitions, external plugin loader, platform filter, highlighting config
-- [ ] 11-03-PLAN.md — Plugin management CLI core subcommands
+- [x] 11-03-PLAN.md — Plugin management CLI core subcommands
 - [x] 11-04-PLAN.md — Git plugin install/update/remove and hot-reload
 - [ ] 11-05-PLAN.md — Shell integration: wiring highlighting, first-run profile, plugin builtin
 
@@ -250,5 +250,5 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 8. Plugin Engine & Alias System | v3.0 | 0/3 | Planned | - |
 | 9. Completion Engine & Utility Plugins | v3.0 | 0/3 | Planned | - |
 | 10. Auto-Suggestions & History Search | v3.0 | 2/2 | Complete    | 2026-04-05 |
-| 11. Syntax Highlighting, Profiles & Plugin Management | v3.0 | 4/5 | In Progress|  |
+| 11. Syntax Highlighting, Profiles & Plugin Management | v3.0 | 5/5 | Complete   | 2026-04-05 |
 | 12. Batch Port, Migration & Discovery | v3.0 | 0/? | Not started | - |
