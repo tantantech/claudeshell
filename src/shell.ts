@@ -21,7 +21,7 @@ import { detectProject } from './context.js'
 import { expandAlias } from './alias.js'
 import { loadPluginsPhase1, loadPluginsPhase2 } from './plugins/loader.js'
 import { dispatchHook, buildHookBus } from './plugins/hooks.js'
-import { BUNDLED_PLUGINS } from './plugins/index.js'
+import { BUNDLED_PLUGINS, loadBundledPlugins } from './plugins/index.js'
 import { createEmptyRegistry } from './plugins/registry.js'
 import { createCompletionEngine } from './completions/engine.js'
 import { setupAutoSuggestions } from './suggestions/index.js'
@@ -47,8 +47,9 @@ function refreshProjectState(
   return { projectContext, mergedConfig }
 }
 
-export async function runShell(options?: { readonly safeMode?: boolean }): Promise<void> {
+export async function runShell(options?: { readonly safeMode?: boolean; readonly migrateMode?: boolean }): Promise<void> {
   const safeMode = options?.safeMode ?? false
+  const migrateMode = options?.migrateMode ?? false
   const globalConfig = loadConfig()
   const initialState = refreshProjectState(globalConfig, process.cwd())
   const config = initialState.mergedConfig
@@ -65,7 +66,8 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
     pluginRegistry = createEmptyRegistry()
     hookBus = { preCommand: [], postCommand: [], prePrompt: [], onCd: [] }
   } else {
-    const phase1 = loadPluginsPhase1(pluginConfig, BUNDLED_PLUGINS)
+    const bundled = await loadBundledPlugins(pluginConfig.enabled ?? [])
+    const phase1 = loadPluginsPhase1(pluginConfig, bundled)
     pluginRegistry = phase1.registry
     enabledPlugins = phase1.enabledPlugins
     hookBus = buildHookBus(enabledPlugins)
@@ -188,6 +190,45 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
           addKnownCommands(pluginRegistry.getAll().keys())
         },
       })
+    }
+  }
+
+  // Migration mode: run OMZ migration flow before REPL (--migrate flag)
+  if (migrateMode) {
+    try {
+      const { detectOMZ, parseZshrcFile, generateMigrationReport, formatMigrationReport } =
+        await import('./migration/detector.js')
+
+      if (!detectOMZ()) {
+        process.stdout.write('No oh-my-zsh installation detected.\n')
+      } else {
+        const omzPlugins = parseZshrcFile()
+        const report = generateMigrationReport(omzPlugins)
+        process.stdout.write(formatMigrationReport(report) + '\n')
+
+        const available = report.filter((r) => r.status === 'available' && r.neshEquivalent)
+        if (available.length > 0) {
+          const answer = await rl.question(
+            `\nEnable all ${available.length} available equivalents? (y/N) `,
+          )
+          if (answer.trim().toLowerCase() === 'y') {
+            const config = loadConfig()
+            const enabled = [...(config.plugins?.enabled ?? [])] as string[]
+            const toAdd = available
+              .map((r) => r.neshEquivalent!)
+              .filter((name) => !enabled.includes(name))
+            if (toAdd.length > 0) {
+              saveConfig({
+                ...config,
+                plugins: { ...config.plugins, enabled: [...enabled, ...toAdd] },
+              })
+              process.stdout.write(`Enabled ${toAdd.length} plugins: ${toAdd.join(', ')}\n`)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      process.stderr.write(`Migration error: ${(err as Error).message}\n`)
     }
   }
 

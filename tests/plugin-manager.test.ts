@@ -22,6 +22,13 @@ vi.mock('../src/plugins/index.js', () => ({
     { name: 'docker-completions', version: '1.0.0', description: 'Docker command completions', platform: 'all' },
     { name: 'extract', version: '1.0.0', description: 'Extract archives', platform: 'linux' },
   ],
+  PLUGIN_CATALOG_LIST: [
+    { name: 'git', description: 'Git aliases and shortcuts', category: 'alias' },
+    { name: 'docker-completions', description: 'Docker command completions', category: 'completion' },
+    { name: 'extract', description: 'Extract archives', category: 'utility' },
+    { name: 'node', description: 'Node.js aliases', category: 'alias' },
+    { name: 'python', description: 'Python aliases', category: 'alias' },
+  ],
 }))
 
 vi.mock('../src/plugins/profiles.js', () => ({

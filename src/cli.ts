@@ -12,6 +12,7 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 
 const forceInteractive = process.argv.includes('--interactive')
 const safeMode = process.argv.includes('--safe')
+const migrateMode = process.argv.includes('--migrate')
 
 if (!process.stdin.isTTY && !forceInteractive) {
   const prompt = process.argv.filter(a => a !== '--interactive').slice(2).join(' ')
@@ -20,7 +21,7 @@ if (!process.stdin.isTTY && !forceInteractive) {
     process.exit(1)
   })
 } else {
-  runShell({ safeMode }).catch((err) => {
+  runShell({ safeMode, migrateMode }).catch((err) => {
     process.stderr.write(`Nesh fatal error: ${(err as Error).message}\n`)
     process.exit(1)
   })
