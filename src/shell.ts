@@ -25,6 +25,11 @@ import { BUNDLED_PLUGINS } from './plugins/index.js'
 import { createEmptyRegistry } from './plugins/registry.js'
 import { createCompletionEngine } from './completions/engine.js'
 import { setupAutoSuggestions } from './suggestions/index.js'
+import { renderHighlighted } from './highlighting/renderer.js'
+import { refreshCommandCache, isKnownCommand, addKnownCommands } from './highlighting/commands.js'
+import { executePlugin } from './plugin-manager.js'
+import { CONFIG_PATH } from './config.js'
+import fs from 'node:fs'
 import type { NeshConfig } from './config.js'
 import type { ProjectContext } from './context.js'
 import type { PluginRegistry } from './plugins/registry.js'
@@ -85,6 +90,21 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
     },
   })
 
+  // Highlighting: refresh command cache and register plugin aliases
+  refreshCommandCache().catch(() => {})
+  addKnownCommands(pluginRegistry.getAll().keys())
+
+  // Highlighting keypress handler -- must register BEFORE suggestions (Pattern 4)
+  let highlightingCleanup: (() => void) | undefined
+  if (config.highlighting?.enabled !== false) {
+    const highlightHandler = (_str: string | undefined, _key: object | undefined) => {
+      renderHighlighted(rl, (cmd) => isKnownCommand(cmd) || pluginRegistry.resolve(cmd) !== undefined)
+    }
+    process.stdin.on('keypress', highlightHandler)
+    highlightingCleanup = () => { process.stdin.removeListener('keypress', highlightHandler) }
+  }
+
+  // Suggestions registered after highlighting for correct keypress order
   const suggestionsCleanup = setupAutoSuggestions(rl, config)
 
   let state: ShellState = {
@@ -106,6 +126,7 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
   let lastHistoryLine: string | undefined
 
   const cleanup = () => {
+    highlightingCleanup?.()
     suggestionsCleanup()
     try { rl.close() } catch { /* already closed */ }
   }
@@ -143,6 +164,30 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
     setImmediate(async () => {
       await loadPluginsPhase2(enabledPlugins, { cwd: process.cwd() })
     })
+  }
+
+  // First-run profile detection (D-14): show profile selector when no plugins configured
+  if (!safeMode) {
+    const hasPluginConfig = (() => {
+      try {
+        fs.accessSync(CONFIG_PATH)
+        return !!(loadConfig().plugins?.enabled?.length)
+      } catch {
+        return false
+      }
+    })()
+    if (!hasPluginConfig) {
+      await executePlugin('profile', {
+        pluginRegistry,
+        rl,
+        onHotReload: (r) => {
+          pluginRegistry = r.registry
+          hookBus = r.hookBus
+          enabledPlugins = r.enabled
+          addKnownCommands(pluginRegistry.getAll().keys())
+        },
+      })
+    }
   }
 
   while (state.running) {
@@ -227,6 +272,19 @@ export async function runShell(options?: { readonly safeMode?: boolean }): Promi
             }
             case 'aliases': {
               executeAliases(pluginRegistry)
+              break
+            }
+            case 'plugin': {
+              await executePlugin(action.args, {
+                pluginRegistry,
+                rl,
+                onHotReload: (r) => {
+                  pluginRegistry = r.registry
+                  hookBus = r.hookBus
+                  enabledPlugins = r.enabled
+                  addKnownCommands(pluginRegistry.getAll().keys())
+                },
+              })
               break
             }
             case 'exit':
