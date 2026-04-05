@@ -1,8 +1,13 @@
 import { abbreviatePath, getGitBranch } from './prompt.js'
 import { getGitStatus, getExecTime, getExitCode, getClock, getNodeVersion, getPythonVenv, getUserHost } from './segments.js'
-import { getIcon, getSeparator, DEFAULT_SEGMENTS } from './prompt-config.js'
-import type { IconMode } from './prompt-config.js'
+import { getIcon, getSeparator, DEFAULT_SEGMENTS, getColorSchemeByName } from './prompt-config.js'
+import type { IconMode, ColorScheme } from './prompt-config.js'
 import { loadConfig } from './config.js'
+
+function loadScheme(): ColorScheme {
+  const config = loadConfig()
+  return getColorSchemeByName(config.prompt_color_scheme ?? 'default')
+}
 
 // ANSI helpers
 const ESC = '\x1b'
@@ -37,52 +42,53 @@ const builders: Record<string, PromptBuilder> = {
   },
 
   classic(cwd: string, homedir: string): string {
+    const s = loadScheme()
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
-    const branchPart = branch ? ` ${fg(6)}(${branch})${RESET}` : ''
-    return `${fg(6)}[${RESET}nesh${fg(6)}]${RESET} \u2500 ${display}${branchPart} \u2500\u25B8 `
+    const branchPart = branch ? ` ${fg(s.accent)}(${branch})${RESET}` : ''
+    return `${fg(s.accent)}[${RESET}nesh${fg(s.accent)}]${RESET} \u2500 ${display}${branchPart} \u2500\u25B8 `
   },
 
   powerline(cwd: string, homedir: string): string {
+    const s = loadScheme()
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
 
-    const seg1 = `${bg(ORANGE)}${fg(WHITE)}${BOLD}  nesh ${RESET}`
-    const sep1 = `${fg(ORANGE)}${bg(DARK_ORANGE)}${RIGHT_SEP}${RESET}`
-    const seg2 = `${bg(DARK_ORANGE)}${fg(WHITE)}${BOLD}  ${display} ${RESET}`
+    const seg1 = `${bg(s.primary)}${fg(WHITE)}${BOLD}  nesh ${RESET}`
+    const sep1 = `${fg(s.primary)}${bg(s.primaryDark)}${RIGHT_SEP}${RESET}`
+    const seg2 = `${bg(s.primaryDark)}${fg(WHITE)}${BOLD}  ${display} ${RESET}`
 
     if (branch) {
-      const sep2 = `${fg(DARK_ORANGE)}${bg(GRAY)}${RIGHT_SEP}${RESET}`
+      const sep2 = `${fg(s.primaryDark)}${bg(GRAY)}${RIGHT_SEP}${RESET}`
       const seg3 = `${bg(GRAY)}${fg(WHITE)}  ${branch} ${RESET}`
       const sep3 = `${fg(GRAY)}${RIGHT_SEP}${RESET}`
-      return `${seg1}${sep1}${seg2}${sep2}${seg3}${sep3} ${fg(ORANGE)}\u276F${RESET} `
+      return `${seg1}${sep1}${seg2}${sep2}${seg3}${sep3} ${fg(s.primary)}${s.promptChar}${RESET} `
     }
 
-    const sep2 = `${fg(DARK_ORANGE)}${RIGHT_SEP}${RESET}`
-    return `${seg1}${sep1}${seg2}${sep2} ${fg(ORANGE)}\u276F${RESET} `
+    const sep2 = `${fg(s.primaryDark)}${RIGHT_SEP}${RESET}`
+    return `${seg1}${sep1}${seg2}${sep2} ${fg(s.primary)}${s.promptChar}${RESET} `
   },
 
   hacker(cwd: string, homedir: string): string {
+    const s = loadScheme()
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
-    const GREEN = 2
-    const g = fg(GREEN)
+    const g = fg(s.git)
     const branchPart = branch ? `${g}\u2500[${RESET}${branch}${g}]${RESET}` : ''
     return `${g}\u250C\u2500[${RESET}nesh${g}]\u2500[${RESET}${display}${g}]${branchPart}${RESET}\n${g}\u2514\u2500\u2500\u257C${RESET} `
   },
 
   pastel(cwd: string, homedir: string): string {
+    const s = loadScheme()
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
-    const PURPLE = 141
-    const BLUE = 111
-    const PINK = 218
-    const branchPart = branch ? ` ${fg(PURPLE)}\u2502${RESET} ${fg(PINK)}${branch}${RESET}` : ''
-    return `${fg(PURPLE)}\u25CF${RESET} nesh ${fg(PURPLE)}\u2502${RESET} ${fg(BLUE)}${display}${RESET}${branchPart} ${fg(PURPLE)}\u276F${RESET} `
+    const branchPart = branch ? ` ${fg(s.primary)}\u2502${RESET} ${fg(s.git)}${branch}${RESET}` : ''
+    return `${fg(s.primary)}\u25CF${RESET} nesh ${fg(s.primary)}\u2502${RESET} ${fg(s.accent)}${display}${RESET}${branchPart} ${fg(s.primary)}${s.promptChar}${RESET} `
   },
 
   rainbow(cwd: string, homedir: string): string {
     const config = loadConfig()
+    const s = getColorSchemeByName(config.prompt_color_scheme ?? 'default')
     const mode: IconMode = config.prompt_icon_mode ?? 'unicode'
     const sep = getSeparator(mode)
     const display = abbreviatePath(cwd, homedir)
@@ -90,18 +96,18 @@ const builders: Record<string, PromptBuilder> = {
     const gitStatus = getGitStatus()
     const segments: string[] = []
 
-    // Shell name - blue bg
-    segments.push(`${bg(31)}${fg(WHITE)}${BOLD} nesh ${RESET}`)
-    segments.push(`${fg(31)}${bg(166)}${sep.right}${RESET}`)
+    // Shell name - primary bg
+    segments.push(`${bg(s.primary)}${fg(WHITE)}${BOLD} nesh ${RESET}`)
+    segments.push(`${fg(s.primary)}${bg(s.primaryDark)}${sep.right}${RESET}`)
 
-    // Directory - orange bg
+    // Directory - primaryDark bg
     const folderIcon = getIcon('folder', mode)
-    segments.push(`${bg(166)}${fg(WHITE)}${BOLD} ${folderIcon}${folderIcon ? ' ' : ''}${display} ${RESET}`)
+    segments.push(`${bg(s.primaryDark)}${fg(WHITE)}${BOLD} ${folderIcon}${folderIcon ? ' ' : ''}${display} ${RESET}`)
 
     if (branch) {
-      segments.push(`${fg(166)}${bg(70)}${sep.right}${RESET}`)
+      segments.push(`${fg(s.primaryDark)}${bg(s.git)}${sep.right}${RESET}`)
       const branchIcon = getIcon('branch', mode)
-      let branchText = `${bg(70)}${fg(WHITE)} ${branchIcon}${branchIcon ? ' ' : ''}${branch}`
+      let branchText = `${bg(s.git)}${fg(WHITE)} ${branchIcon}${branchIcon ? ' ' : ''}${branch}`
       if (gitStatus) {
         const parts: string[] = []
         if (gitStatus.dirty) parts.push(`~${gitStatus.dirty}`)
@@ -113,16 +119,17 @@ const builders: Record<string, PromptBuilder> = {
       }
       branchText += ` ${RESET}`
       segments.push(branchText)
-      segments.push(`${fg(70)}${sep.right}${RESET}`)
+      segments.push(`${fg(s.git)}${sep.right}${RESET}`)
     } else {
-      segments.push(`${fg(166)}${sep.right}${RESET}`)
+      segments.push(`${fg(s.primaryDark)}${sep.right}${RESET}`)
     }
 
-    return `${segments.join('')} ${fg(31)}\u276F${RESET} `
+    return `${segments.join('')} ${fg(s.primary)}${s.promptChar}${RESET} `
   },
 
   lean(cwd: string, homedir: string): string {
     const config = loadConfig()
+    const s = getColorSchemeByName(config.prompt_color_scheme ?? 'default')
     const mode: IconMode = config.prompt_icon_mode ?? 'unicode'
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -133,15 +140,15 @@ const builders: Record<string, PromptBuilder> = {
 
     // Line 1: left = dir + git, right = info segments
     const leftParts: string[] = []
-    leftParts.push(`${fg(75)}${display}${RESET}`)
+    leftParts.push(`${fg(s.accent)}${display}${RESET}`)
 
     if (branch) {
       const branchIcon = getIcon('branch', mode)
-      let gitPart = `${fg(114)}${branchIcon}${branchIcon ? ' ' : ''}${branch}`
+      let gitPart = `${fg(s.git)}${branchIcon}${branchIcon ? ' ' : ''}${branch}`
       if (gitStatus) {
         const parts: string[] = []
-        if (gitStatus.dirty) parts.push(`${fg(203)}~${gitStatus.dirty}`)
-        if (gitStatus.staged) parts.push(`${fg(114)}+${gitStatus.staged}`)
+        if (gitStatus.dirty) parts.push(`${fg(s.error)}~${gitStatus.dirty}`)
+        if (gitStatus.staged) parts.push(`${fg(s.git)}+${gitStatus.staged}`)
         if (gitStatus.untracked) parts.push(`${fg(227)}?${gitStatus.untracked}`)
         if (parts.length > 0) gitPart += ` ${parts.join(' ')}`
       }
@@ -151,18 +158,19 @@ const builders: Record<string, PromptBuilder> = {
 
     const rightParts: string[] = []
     if (venv) rightParts.push(`${fg(221)}${getIcon('python', mode)} ${venv}${RESET}`)
-    rightParts.push(`${fg(114)}${getIcon('node', mode)} ${nodeVer}${RESET}`)
+    rightParts.push(`${fg(s.git)}${getIcon('node', mode)} ${nodeVer}${RESET}`)
     const clockIcon = getIcon('clock', mode)
-    rightParts.push(`${fg(245)}${clockIcon}${clockIcon ? ' ' : ''}${clock}${RESET}`)
+    rightParts.push(`${fg(s.info)}${clockIcon}${clockIcon ? ' ' : ''}${clock}${RESET}`)
 
     const line1 = `${leftParts.join(' ')}  ${rightParts.join('  ')}`
 
     // Line 2: prompt character
-    return `${line1}\n${fg(75)}\u276F${RESET} `
+    return `${line1}\n${fg(s.accent)}${s.promptChar}${RESET} `
   },
 
   'classic-p10k'(cwd: string, homedir: string): string {
     const config = loadConfig()
+    const s = getColorSchemeByName(config.prompt_color_scheme ?? 'default')
     const mode: IconMode = config.prompt_icon_mode ?? 'unicode'
     const sep = getSeparator(mode)
     const display = abbreviatePath(cwd, homedir)
@@ -176,16 +184,16 @@ const builders: Record<string, PromptBuilder> = {
 
     // Directory - dark bg 238
     const folderIcon = getIcon('folder', mode)
-    segments.push(`${bg(238)}${fg(75)}${BOLD} ${folderIcon}${folderIcon ? ' ' : ''}${display} ${RESET}`)
+    segments.push(`${bg(238)}${fg(s.accent)}${BOLD} ${folderIcon}${folderIcon ? ' ' : ''}${display} ${RESET}`)
 
     if (branch) {
       segments.push(`${fg(238)}${bg(240)}${sep.right}${RESET}`)
       const branchIcon = getIcon('branch', mode)
-      let branchText = `${bg(240)}${fg(114)} ${branchIcon}${branchIcon ? ' ' : ''}${branch}`
+      let branchText = `${bg(240)}${fg(s.git)} ${branchIcon}${branchIcon ? ' ' : ''}${branch}`
       if (gitStatus) {
         const parts: string[] = []
-        if (gitStatus.dirty) parts.push(`${fg(203)}~${gitStatus.dirty}`)
-        if (gitStatus.staged) parts.push(`${fg(114)}+${gitStatus.staged}`)
+        if (gitStatus.dirty) parts.push(`${fg(s.error)}~${gitStatus.dirty}`)
+        if (gitStatus.staged) parts.push(`${fg(s.git)}+${gitStatus.staged}`)
         if (gitStatus.untracked) parts.push(`${fg(227)}?${gitStatus.untracked}`)
         if (parts.length > 0) branchText += ` ${parts.join(' ')}`
       }
@@ -196,26 +204,27 @@ const builders: Record<string, PromptBuilder> = {
       segments.push(`${fg(238)}${sep.right}${RESET}`)
     }
 
-    return `${segments.join('')} ${fg(75)}\u276F${RESET} `
+    return `${segments.join('')} ${fg(s.accent)}${s.promptChar}${RESET} `
   },
 
   pure(cwd: string, homedir: string): string {
+    const s = loadScheme()
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
     const gitStatus = getGitStatus()
 
-    let line = `${fg(75)}${display}${RESET}`
+    let line = `${fg(s.accent)}${display}${RESET}`
 
     if (branch) {
-      let gitPart = `${fg(245)}${branch}`
+      let gitPart = `${fg(s.info)}${branch}`
       if (gitStatus && gitStatus.dirty > 0) {
-        gitPart += `${fg(203)}*`
+        gitPart += `${fg(s.error)}*`
       }
       gitPart += RESET
       line += ` ${gitPart}`
     }
 
-    return `${line}\n${fg(141)}\u276F${RESET} `
+    return `${line}\n${fg(s.primary)}${s.promptChar}${RESET} `
   },
 }
 

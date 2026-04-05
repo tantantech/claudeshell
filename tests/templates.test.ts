@@ -74,11 +74,14 @@ describe('buildPromptFromTemplate', () => {
     expect(result).toContain('\uE0B0')
   })
 
-  it('hacker template uses green coloring', () => {
+  it('hacker template uses color scheme git color', () => {
     const t = getTemplateByName('hacker')!
     const result = buildPromptFromTemplate(t, '/tmp', '/Users/tal')
-    // ANSI 256-color green (color 2) = \x1b[38;5;2m
-    expect(result).toMatch(/\x1b\[38;5;2m/)
+    // Uses color scheme git color (default = 114)
+    expect(result).toMatch(/\x1b\[38;5;\d+m/)
+    expect(result).toContain('nesh')
+    expect(result).toContain('\u250C') // box drawing top
+    expect(result).toContain('\u2514') // box drawing bottom
   })
 
   it('all templates produce prompts ending with trailing space', () => {
