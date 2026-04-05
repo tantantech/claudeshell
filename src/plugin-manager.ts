@@ -2,7 +2,7 @@ import type { Interface as ReadlineInterface } from 'node:readline/promises'
 import pc from 'picocolors'
 import type { PluginRegistry } from './plugins/registry.js'
 import type { PluginManifest } from './plugins/types.js'
-import { BUNDLED_PLUGINS } from './plugins/index.js'
+import { BUNDLED_PLUGINS, PLUGIN_CATALOG_LIST } from './plugins/index.js'
 import { PROFILES, expandProfile } from './plugins/profiles.js'
 import { loadConfig, saveConfig } from './config.js'
 import { installPlugin, updatePlugin, removePlugin } from './plugin-install.js'
@@ -42,6 +42,10 @@ export async function executePlugin(
       return doctorCmd(ctx)
     case 'times':
       return timesCmd(ctx)
+    case 'migrate':
+      return migrateCmd(ctx)
+    case 'discover':
+      return discoverCmd(rest, ctx)
     case 'profile':
       return profileCmd(ctx)
     case 'help':
@@ -60,7 +64,9 @@ function showHelp(): void {
   process.stdout.write('  plugin install <repo>      Install plugin from git repo\n')
   process.stdout.write('  plugin update <name>       Update an installed plugin\n')
   process.stdout.write('  plugin remove <name>       Remove an installed plugin\n')
-  process.stdout.write('  plugin search <query>      Search bundled plugins\n')
+  process.stdout.write('  plugin search <query>      Search plugin catalog (~300 plugins)\n')
+  process.stdout.write('  plugin migrate             Detect OMZ plugins and show migration report\n')
+  process.stdout.write('  plugin discover <query>    AI-powered plugin recommendations\n')
   process.stdout.write('  plugin doctor              Diagnose plugin issues\n')
   process.stdout.write('  plugin times               Show plugin load timing\n')
   process.stdout.write('  plugin profile             Select a plugin profile\n')
@@ -223,7 +229,7 @@ function searchPlugins(query: string): void {
   }
 
   const lowerQuery = query.toLowerCase()
-  const matches = BUNDLED_PLUGINS.filter(
+  const matches = PLUGIN_CATALOG_LIST.filter(
     (p) =>
       p.name.toLowerCase().includes(lowerQuery) ||
       p.description.toLowerCase().includes(lowerQuery),
@@ -234,10 +240,10 @@ function searchPlugins(query: string): void {
     return
   }
 
-  process.stdout.write(`\n${pc.bold('Search Results')}\n\n`)
+  process.stdout.write(`\n${pc.bold('Search Results')} (${matches.length} matches)\n\n`)
   for (const plugin of matches) {
     process.stdout.write(
-      `  ${pc.bold(plugin.name)} ${pc.dim(`v${plugin.version}`)}\n`,
+      `  ${pc.bold(plugin.name)} ${pc.dim(`[${plugin.category}]`)}\n`,
     )
     process.stdout.write(`    ${plugin.description}\n\n`)
   }
@@ -310,6 +316,70 @@ async function profileCmd(ctx: PluginManagerContext): Promise<void> {
   process.stdout.write(`Profile set to: ${pc.bold(selected.name)}\n`)
   process.stdout.write(`Enabled plugins: ${expanded.join(', ')}\n`)
   triggerHotReload(ctx)
+}
+
+async function migrateCmd(ctx: PluginManagerContext): Promise<void> {
+  const { detectOMZ, parseZshrcFile, generateMigrationReport, formatMigrationReport } =
+    await import('./migration/detector.js')
+
+  if (!detectOMZ()) {
+    process.stdout.write('No oh-my-zsh installation detected.\n')
+    return
+  }
+
+  const omzPlugins = parseZshrcFile()
+  const report = generateMigrationReport(omzPlugins)
+  process.stdout.write(formatMigrationReport(report) + '\n')
+
+  const available = report.filter((r) => r.status === 'available' && r.neshEquivalent)
+  if (available.length === 0) return
+
+  const answer = await ctx.rl.question(
+    `\nEnable all ${available.length} available equivalents? (y/N) `,
+  )
+
+  if (answer.trim().toLowerCase() !== 'y') return
+
+  const config = loadConfig()
+  const enabled = [...(config.plugins?.enabled ?? [])] as string[]
+  const toAdd = available
+    .map((r) => r.neshEquivalent!)
+    .filter((name) => !enabled.includes(name))
+
+  if (toAdd.length === 0) {
+    process.stdout.write('All available plugins are already enabled.\n')
+    return
+  }
+
+  const newConfig = {
+    ...config,
+    plugins: {
+      ...config.plugins,
+      enabled: [...enabled, ...toAdd],
+    },
+  }
+  saveConfig(newConfig)
+  process.stdout.write(`Enabled ${toAdd.length} plugins: ${toAdd.join(', ')}\n`)
+  triggerHotReload(ctx)
+}
+
+async function discoverCmd(query: string, _ctx: PluginManagerContext): Promise<void> {
+  if (!query) {
+    process.stdout.write('Usage: plugin discover "description of your workflow"\n')
+    return
+  }
+
+  const { discoverPlugins, formatDiscoveryResults } =
+    await import('./migration/discovery.js')
+
+  const result = await discoverPlugins(query)
+  process.stdout.write(formatDiscoveryResults(result) + '\n')
+
+  if (result.source === 'keyword') {
+    process.stdout.write(
+      pc.dim('Tip: Set ANTHROPIC_API_KEY for AI-powered recommendations.\n'),
+    )
+  }
 }
 
 function triggerHotReload(ctx: PluginManagerContext): void {
