@@ -4,7 +4,7 @@ import * as os from 'node:os'
 import process from 'node:process'
 import { buildPrompt } from './prompt.js'
 import { classifyInput } from './classify.js'
-import { executeCd, executeExport, executeTheme } from './builtins.js'
+import { executeCd, executeExport, executeTheme, executeAliases } from './builtins.js'
 import { executeModelSwitcher } from './model-switcher.js'
 import { executeKeyManager } from './key-manager.js'
 import { executeSettings } from './settings.js'
@@ -18,8 +18,15 @@ import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './h
 import { isInteractiveCommand, executeInteractive } from './interactive.js'
 import { loadConfig, loadProjectConfig, mergeConfigs, saveConfig, resolveApiKey } from './config.js'
 import { detectProject } from './context.js'
+import { expandAlias } from './alias.js'
+import { loadPluginsPhase1, loadPluginsPhase2 } from './plugins/loader.js'
+import { dispatchHook, buildHookBus } from './plugins/hooks.js'
+import { BUNDLED_PLUGINS } from './plugins/index.js'
+import { createEmptyRegistry } from './plugins/registry.js'
 import type { NeshConfig } from './config.js'
 import type { ProjectContext } from './context.js'
+import type { PluginRegistry } from './plugins/registry.js'
+import type { HookBus } from './plugins/hooks.js'
 import { getTemplateByName, buildPromptFromTemplate, DEFAULT_TEMPLATE_NAME } from './templates.js'
 import type { ShellState } from './types.js'
 
@@ -33,12 +40,30 @@ function refreshProjectState(
   return { projectContext, mergedConfig }
 }
 
-export async function runShell(): Promise<void> {
+export async function runShell(options?: { readonly safeMode?: boolean }): Promise<void> {
+  const safeMode = options?.safeMode ?? false
   const globalConfig = loadConfig()
   const initialState = refreshProjectState(globalConfig, process.cwd())
   const config = initialState.mergedConfig
   let prefix = config.prefix ?? 'a'
   let currentTemplate = config.prompt_template ?? DEFAULT_TEMPLATE_NAME
+
+  // Plugin Phase 1: synchronous alias registration (<50ms)
+  const pluginConfig = config.plugins ?? {}
+  let pluginRegistry: PluginRegistry
+  let hookBus: HookBus
+  let enabledPlugins: readonly import('./plugins/types.js').PluginManifest[] = []
+
+  if (safeMode) {
+    pluginRegistry = createEmptyRegistry()
+    hookBus = { preCommand: [], postCommand: [], prePrompt: [], onCd: [] }
+  } else {
+    const phase1 = loadPluginsPhase1(pluginConfig, BUNDLED_PLUGINS)
+    pluginRegistry = phase1.registry
+    enabledPlugins = phase1.enabledPlugins
+    hookBus = buildHookBus(enabledPlugins)
+  }
+
   const historyLines = loadHistory(HISTORY_PATH)
 
   const rl = readline.createInterface({
@@ -99,12 +124,22 @@ export async function runShell(): Promise<void> {
     state = { ...state, running: false }
   })
 
+  // Plugin Phase 2: async init deferred after first prompt
+  if (!safeMode && enabledPlugins.length > 0) {
+    setImmediate(async () => {
+      await loadPluginsPhase2(enabledPlugins, { cwd: process.cwd() })
+    })
+  }
+
   while (state.running) {
     try {
       const template = getTemplateByName(currentTemplate) ?? getTemplateByName(DEFAULT_TEMPLATE_NAME)!
       const prompt = buildPromptFromTemplate(template, process.cwd(), os.homedir())
+      // Fire-and-forget: prePrompt hook (per D-26 -- no await)
+      dispatchHook('prePrompt', hookBus.prePrompt, { cwd: process.cwd() })
       const line = await rl.question(prompt)
-      const action = classifyInput(line, prefix)
+      const expandedLine = expandAlias(line, pluginRegistry)
+      const action = classifyInput(expandedLine, prefix)
 
       switch (action.type) {
         case 'empty':
@@ -119,7 +154,8 @@ export async function runShell(): Promise<void> {
               if (result.error) {
                 process.stderr.write(result.error + '\n')
               } else {
-                const refreshed = refreshProjectState(globalConfig, process.cwd())
+                const currentDir = process.cwd()
+                const refreshed = refreshProjectState(globalConfig, currentDir)
                 prefix = refreshed.mergedConfig.prefix ?? prefix
                 state = {
                   ...state,
@@ -127,6 +163,7 @@ export async function runShell(): Promise<void> {
                   permissionMode: refreshed.mergedConfig.permissions ?? state.permissionMode,
                   currentModel: refreshed.mergedConfig.model ?? state.currentModel,
                 }
+                await dispatchHook('onCd', hookBus.onCd, { cwd: currentDir, previousDir: result.newState.previousDir })
               }
               break
             }
@@ -176,6 +213,10 @@ export async function runShell(): Promise<void> {
               }
               break
             }
+            case 'aliases': {
+              executeAliases(pluginRegistry)
+              break
+            }
             case 'exit':
             case 'quit':
               state = { ...state, running: false }
@@ -208,6 +249,7 @@ export async function runShell(): Promise<void> {
             }
             break
           }
+          await dispatchHook('preCommand', hookBus.preCommand, { cwd: process.cwd(), command: action.command })
           const result = await executeCommand(action.command)
           if (result.exitCode !== 0) {
             process.stderr.write(`[exit: ${result.exitCode}]\n`)
@@ -254,6 +296,7 @@ export async function runShell(): Promise<void> {
           } else {
             state = { ...state, lastError: undefined, lastSuggestedFix: undefined }
           }
+          await dispatchHook('postCommand', hookBus.postCommand, { cwd: process.cwd(), command: action.command, exitCode: result.exitCode })
           break
         }
 
