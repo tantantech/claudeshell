@@ -9,6 +9,7 @@ import { abbreviatePath, getGitBranch } from './prompt.js'
 import { COLOR_SCHEMES, getColorSchemeByName } from './prompt-config.js'
 import { executePromptConfig } from './prompt-config.js'
 import { loadConfig, saveConfig } from './config.js'
+import { executeWizard } from './wizard.js'
 
 export function expandTilde(p: string): string {
   if (p === '~') return os.homedir()
@@ -64,6 +65,14 @@ export interface ThemeResult {
   readonly colorScheme?: string
   readonly segments?: readonly string[]
   readonly iconMode?: 'nerd-font' | 'unicode' | 'ascii'
+  readonly separatorStyle?: string
+  readonly headStyle?: string
+  readonly height?: string
+  readonly spacing?: string
+  readonly iconDensity?: string
+  readonly flow?: string
+  readonly transient?: boolean
+  readonly timeFormat?: string
 }
 
 export async function executeTheme(rl: readline.Interface): Promise<ThemeResult> {
@@ -73,6 +82,25 @@ export async function executeTheme(rl: readline.Interface): Promise<ThemeResult>
 
   process.stdout.write(`\n${pc.bold('Theme Configuration')}\n\n`)
   process.stdout.write(`  Current: ${pc.bold(currentTemplate)} template, ${pc.bold(currentScheme)} colors\n\n`)
+  process.stdout.write('  [1] Configuration Wizard  \u2014 Full guided setup (recommended)\n')
+  process.stdout.write('  [2] Quick Edit            \u2014 Change individual settings\n\n')
+
+  const answer = await rl.question('Select (1-2): ')
+  const choice = parseInt(answer.trim(), 10)
+
+  switch (choice) {
+    case 1:
+      return executeWizard(rl)
+    case 2:
+      return executeQuickEdit(rl)
+    default:
+      process.stdout.write('Selection cancelled.\n')
+      return {}
+  }
+}
+
+async function executeQuickEdit(rl: readline.Interface): Promise<ThemeResult> {
+  process.stdout.write(`\n${pc.bold('Quick Edit')}\n\n`)
   process.stdout.write('  [1] Template    \u2014 Choose prompt layout style\n')
   process.stdout.write('  [2] Colors      \u2014 Change color scheme\n')
   process.stdout.write('  [3] Segments    \u2014 Configure info segments & icons\n\n')
