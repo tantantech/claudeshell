@@ -46,7 +46,7 @@
 - [ ] **HLGT-01**: Real-time input coloring for commands, strings, flags, and paths
 - [ ] **HLGT-02**: Highlighting uses output-only rendering — `rl.line` always remains plain text
 - [ ] **HLGT-03**: Debounced rendering with frame budget (<16ms) to prevent typing lag
-- [ ] **HLGT-04**: Syntax highlighting independently disablable in config
+- [x] **HLGT-04**: Syntax highlighting independently disablable in config
 
 ### Plugin Management
 
@@ -59,9 +59,9 @@
 
 ### Profile System
 
-- [ ] **PROF-01**: Curated plugin profiles: core, developer, devops, cloud, ai-engineer
+- [x] **PROF-01**: Curated plugin profiles: core, developer, devops, cloud, ai-engineer
 - [ ] **PROF-02**: Interactive profile selector at first run or via `plugin profile` command
-- [ ] **PROF-03**: Profiles are additive — enabling "devops" adds to "core", not replaces
+- [x] **PROF-03**: Profiles are additive — enabling "devops" adds to "core", not replaces
 - [ ] **PROF-04**: Users can customize profiles after selection (add/remove individual plugins)
 
 ### Plugin Catalog (OMZ Port)
@@ -71,7 +71,7 @@
 - [x] **PORT-03**: Completion-dependent plugins (~100) ported using Fig-style completion specs
 - [x] **PORT-04**: Environment/utility plugins (~40) ported with cross-platform TypeScript implementations
 - [ ] **PORT-05**: Hook/widget plugins (~30) ported using Nesh hook system and keypress API
-- [ ] **PORT-06**: Platform annotations in manifest for platform-specific plugins (brew=macOS, apt=Linux)
+- [x] **PORT-06**: Platform annotations in manifest for platform-specific plugins (brew=macOS, apt=Linux)
 
 ### Migration & Discovery
 
@@ -148,23 +148,23 @@
 | HLGT-01 | Phase 11 | Pending |
 | HLGT-02 | Phase 11 | Pending |
 | HLGT-03 | Phase 11 | Pending |
-| HLGT-04 | Phase 11 | Pending |
+| HLGT-04 | Phase 11 | Complete |
 | MGMT-01 | Phase 11 | Pending |
 | MGMT-02 | Phase 11 | Pending |
 | MGMT-03 | Phase 11 | Pending |
 | MGMT-04 | Phase 11 | Pending |
 | MGMT-05 | Phase 11 | Pending |
 | MGMT-06 | Phase 11 | Pending |
-| PROF-01 | Phase 11 | Pending |
+| PROF-01 | Phase 11 | Complete |
 | PROF-02 | Phase 11 | Pending |
-| PROF-03 | Phase 11 | Pending |
+| PROF-03 | Phase 11 | Complete |
 | PROF-04 | Phase 11 | Pending |
 | PORT-01 | Phase 12 | Pending |
 | PORT-02 | Phase 8 | Complete |
 | PORT-03 | Phase 9 | Complete |
 | PORT-04 | Phase 9 | Complete |
 | PORT-05 | Phase 12 | Pending |
-| PORT-06 | Phase 11 | Pending |
+| PORT-06 | Phase 11 | Complete |
 | MIG-01 | Phase 12 | Pending |
 | MIG-02 | Phase 12 | Pending |
 | MIG-03 | Phase 12 | Pending |
