@@ -1,569 +1,686 @@
 # Architecture Patterns
 
-**Domain:** AI-native shell -- v2 feature integration with existing architecture
-**Researched:** 2026-03-31
+**Domain:** TypeScript plugin framework for AI-native terminal shell (oh-my-zsh port)
+**Researched:** 2026-04-03
 
-## Current Architecture Summary
+## Recommended Architecture
 
-ClaudeShell v1 is 13 TypeScript modules with clear single-responsibility boundaries:
-
-```
-cli.ts          Entry point, --version flag, launches runShell()
-shell.ts        REPL loop, state machine, readline, dispatch
-classify.ts     Input classification: empty | builtin | passthrough | ai
-builtins.ts     cd, export, clear, theme, exit/quit
-passthrough.ts  System shell command execution via spawn('bash')
-ai.ts           Claude Code SDK integration (lazy-loaded), streaming
-renderer.ts     Markdown rendering (TTY) vs raw text (pipe) output
-config.ts       ~/.claudeshell/config.json load/save + API key resolution
-history.ts      ~/.claudeshell_history persistence
-prompt.ts       Powerline prompt builder (ANSI, git branch)
-templates.ts    5 prompt themes with builders
-types.ts        ShellState, InputAction, LastError, BuiltinName
-marked-terminal.d.ts  Type declarations for marked-terminal
-```
-
-**Key architectural properties:**
-- Immutable `ShellState` updated via spread in the REPL loop
-- Single `executeAI()` call per `a` command -- no session continuity
-- Renderer switches behavior based on `isTTY` (markdown vs raw)
-- SDK loaded lazily via dynamic `import()` on first AI call
-- No conversation memory between `a` commands
-- `classify.ts` is a pure function -- no side effects
-- `shell.ts` REPL loop is 175 lines, clean dispatcher pattern
-
-## Recommended Architecture for v2
-
-### Design Principle: Extend ShellState, Not Shell.ts
-
-The REPL loop in `shell.ts` is well-structured. v2 features integrate by:
-1. Expanding `ShellState` and `InputAction` types in `types.ts`
-2. Adding new modules that `shell.ts` orchestrates
-3. Keeping `shell.ts` as a thin dispatcher with minimal feature logic
-
-Do NOT refactor `shell.ts` into a class or embed feature logic directly into the REPL loop.
-
-### Component Boundaries
-
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `session.ts` (NEW) | Session lifecycle: create, resume, list, clear | ai.ts, config.ts, shell.ts |
-| `model.ts` (NEW) | Model selection, alias resolution, per-query override | ai.ts, config.ts, shell.ts |
-| `permissions.ts` (NEW) | Permission policy, canUseTool callback factory | ai.ts, config.ts |
-| `context.ts` (NEW) | Project detection, context building for system prompt | ai.ts, shell.ts |
-| `pipe.ts` (NEW) | Stdin pipe detection, content framing for AI | cli.ts, ai.ts, shell.ts |
-| `cost.ts` (NEW) | Token/cost tracking from SDK stream messages | ai.ts, renderer.ts |
-| `types.ts` (EXTEND) | New state fields, new InputAction variants | all modules |
-| `classify.ts` (EXTEND) | Slash commands, model prefix parsing | shell.ts |
-| `ai.ts` (EXTEND) | Session-aware queries, model passing, permissions | session.ts, model.ts, permissions.ts |
-| `config.ts` (EXTEND) | Per-project config, new fields | context.ts |
-| `renderer.ts` (EXTEND) | Cost display after responses | cost.ts |
-| `passthrough.ts` (EXTEND) | Interactive command detection, stdio: 'inherit' path | shell.ts |
-| `shell.ts` (MINOR) | Wire new modules, new builtin/slash dispatch | all new modules |
-
-### Data Flow
+### High-Level Integration with Existing Nesh Architecture
 
 ```
-User Input
-    |
-    v
-classify.ts  -->  Detect: slash command? model prefix? standard 'a' prefix?
-    |
-    v
-shell.ts     -->  Dispatch to appropriate handler
-    |
-    +--> builtin  --> builtins.ts (cd, export, clear, theme, exit/quit)
-    +--> slash    --> shell.ts handles: /session, /model, /permissions, /context
-    +--> passthrough --> passthrough.ts (stdio:'inherit' for interactive detection)
-    +--> ai       --> pipe.ts (prepend stdin if piped) --> ai.ts
-                                                            |
-                                                            +--> session.ts (resolve sessionId)
-                                                            +--> model.ts (resolve model for query)
-                                                            +--> permissions.ts (resolve permissionMode)
-                                                            +--> context.ts (build system prompt)
-                                                            |
-                                                            v
-                                                          SDK query()
-                                                            |
-                                                            v
-                                                          Stream events
-                                                            |
-                                                            +--> renderer.ts (text, tool events)
-                                                            +--> cost.ts (extract usage from result)
+cli.ts --> shell.ts --> PluginManager.init() at startup
+                     |
+                 REPL loop:
+                     |
+                 buildPrompt() <-- PluginHooks.promptRender()
+                     |
+                 rl.question() with completer <-- PluginCompleter.complete()
+                     |
+                 [keypress events] <-- SyntaxHighlighter.highlight() (raw mode layer)
+                     |
+                 classifyInput() <-- PluginAliasResolver.expand() (pre-classification)
+                     |
+                 PluginHooks.preCommand(action)
+                     |
+                 route to: builtins / passthrough / ai / plugin-command
+                     |
+                 PluginHooks.postCommand(action, result)
+                     |
+                 loop
 ```
 
-## Feature Integration Plans
+### New Module Map
 
-### 1. Session Management (session.ts)
+| New Module | Responsibility | Integrates With |
+|------------|---------------|-----------------|
+| `src/plugins/types.ts` | Plugin interface, hook types, manifest types | All plugin modules |
+| `src/plugins/manager.ts` | Lifecycle: load, enable, disable, unload | `shell.ts` (init + shutdown) |
+| `src/plugins/loader.ts` | Discover + import plugin modules from disk | `manager.ts`, `config.ts` |
+| `src/plugins/registry.ts` | Store active plugins, aliases, completions, functions | `manager.ts`, `classify.ts` |
+| `src/plugins/hooks.ts` | Hook bus: preCommand, postCommand, promptRender, chpwd | `shell.ts` REPL loop |
+| `src/plugins/completer.ts` | Aggregate completions from plugins + system PATH | `shell.ts` readline completer |
+| `src/plugins/highlighter.ts` | Real-time syntax coloring via keypress event layer | `shell.ts` (wraps readline) |
+| `src/plugins/suggester.ts` | Fish-like auto-suggestions from history + plugin data | `shell.ts` (wraps readline) |
+| `src/plugins/resolver.ts` | Dependency resolution + topological sort | `manager.ts` |
+| `src/plugins/sandbox.ts` | Error boundaries, timeout enforcement | `manager.ts`, `hooks.ts` |
+| `src/plugins/profiles.ts` | Curated plugin sets (core, developer, devops, cloud, ai) | `config.ts`, `manager.ts` |
+| `src/plugins/cli.ts` | `nesh plugin list/enable/disable/install` commands | `classify.ts` (new builtin) |
 
-**SDK Support (HIGH confidence -- official docs):** The SDK natively supports sessions via:
-- `resume: sessionId` -- continue a previous session
-- `sessionId: uuid` -- use a specific UUID for a new session
-- `continue: true` -- continue the most recent conversation
-- `persistSession: boolean` -- control disk persistence
-- `listSessions()` -- discover past sessions with metadata
-- `getSessionMessages()` -- retrieve messages from a session
-- `getSessionInfo()` -- metadata for a single session
-- `renameSession()` / `tagSession()` -- mutate session metadata
+### Modified Existing Modules
 
-**Architecture:**
+| Existing Module | Modification | Why |
+|-----------------|-------------|-----|
+| `src/types.ts` | Add `enabledPlugins` and `pluginState` to `ShellState` | Plugin state flows through immutable state |
+| `src/shell.ts` | Init PluginManager before REPL; wrap readline with completer; inject hook calls into loop | Central integration point |
+| `src/classify.ts` | Call alias expansion before classification; add `plugin-command` action type | Plugins register aliases and commands |
+| `src/config.ts` | Add `plugins`, `profile`, `plugin_config` fields to `NeshConfig` | User configuration of plugins |
+| `src/prompt.ts` | Export hook point for plugin prompt segments | Plugins can add git status, venv info, kube context |
+| `src/builtins.ts` | Add `plugin` as a builtin name routing to plugin CLI | `nesh plugin list` etc. |
+| `src/history.ts` | Export read-only history access for suggestion engine | Suggester needs history data |
+
+## Component Boundaries
+
+### Plugin Interface Contract
 
 ```typescript
-// session.ts -- pure functions, no classes
-function createSessionId(): string              // crypto.randomUUID()
-function getResumeOptions(sessionId: string | undefined): { resume?: string }
-async function listProjectSessions(cwd: string, limit?: number): Promise<SDKSessionInfo[]>
-async function clearSession(): string           // Returns new session ID
+// src/plugins/types.ts
+
+export interface NeshPlugin {
+  readonly name: string
+  readonly version: string
+  readonly description?: string
+  readonly dependencies?: readonly string[]
+
+  // Lifecycle (optional -- most alias-only plugins skip these)
+  readonly init?: (ctx: PluginContext) => Promise<void> | void
+  readonly destroy?: () => Promise<void> | void
+
+  // Registrations (declarative, evaluated at load time)
+  readonly aliases?: Readonly<Record<string, string>>
+  readonly completions?: PluginCompletionProvider
+  readonly commands?: Readonly<Record<string, PluginCommandHandler>>
+  readonly functions?: Readonly<Record<string, PluginFunction>>
+
+  // Hooks (optional, called during REPL lifecycle)
+  readonly hooks?: PluginHookSet
+}
+
+export interface PluginContext {
+  readonly cwd: () => string
+  readonly env: () => Readonly<Record<string, string | undefined>>
+  readonly config: () => Readonly<Record<string, unknown>>
+  readonly state: () => Readonly<ShellState>
+  readonly log: (msg: string) => void
+  readonly registerCompletion: (provider: PluginCompletionProvider) => void
+}
+
+export interface PluginHookSet {
+  readonly preCommand?: (action: InputAction) => InputAction | void
+  readonly postCommand?: (action: InputAction, result: CommandOutcome) => void
+  readonly promptRender?: (segments: PromptSegment[]) => PromptSegment[]
+  readonly chpwd?: (oldDir: string, newDir: string) => void
+  readonly preExec?: (command: string) => string | void
+  readonly envChange?: (key: string, value: string | undefined) => void
+}
+
+export interface PluginCompletionProvider {
+  readonly triggers?: readonly string[]  // command prefixes this completes
+  readonly complete: (context: CompletionContext) => CompletionResult
+}
+
+export interface CompletionContext {
+  readonly line: string
+  readonly cursor: number
+  readonly words: readonly string[]
+  readonly wordIndex: number
+}
+
+export type CompletionResult =
+  | readonly string[]
+  | Promise<readonly string[]>
+
+export interface PluginManifest {
+  readonly name: string
+  readonly version: string
+  readonly description: string
+  readonly category: PluginCategory
+  readonly dependencies?: readonly string[]
+  readonly platforms?: readonly ('darwin' | 'linux' | 'win32')[]
+  readonly requiredBinaries?: readonly string[]
+}
+
+export type PluginCategory =
+  | 'git' | 'docker' | 'cloud' | 'node' | 'python' | 'ruby'
+  | 'navigation' | 'productivity' | 'system' | 'completion'
+  | 'ai' | 'devops' | 'editor' | 'misc'
 ```
 
-**Integration with ai.ts:**
-- `executeAI()` receives `sessionId` from ShellState and passes to SDK as `options.resume`
-- On first `a` command in a shell session: auto-create session ID, store in ShellState
-- Subsequent `a` commands: pass same session ID via `resume` for context continuity
-- `/session new` slash command: clear session ID, next `a` starts fresh
-- `/session list` slash command: call SDK `listSessions()` and display
-- `/session resume <id>` slash command: set session ID in state
+### Plugin Manager Lifecycle
 
-**ShellState extension:**
 ```typescript
-interface ShellState {
-  // existing fields unchanged
-  readonly cdState: CdState
-  readonly running: boolean
-  readonly lastError: LastError | undefined
-  readonly aiStreaming: boolean
-  // v2 additions:
-  readonly sessionId: string | undefined
-  readonly currentModel: string | undefined
-  readonly permissionLevel: PermissionLevel
+// src/plugins/manager.ts -- simplified interface
+
+export interface PluginManager {
+  // Startup: called once in shell.ts before REPL loop
+  readonly init: (config: NeshConfig) => Promise<void>
+
+  // Runtime: enable/disable without restart
+  readonly enable: (name: string) => Promise<void>
+  readonly disable: (name: string) => void
+
+  // Install from git
+  readonly install: (url: string) => Promise<void>
+  readonly uninstall: (name: string) => void
+
+  // Query
+  readonly list: () => readonly PluginInfo[]
+  readonly get: (name: string) => NeshPlugin | undefined
+  readonly isEnabled: (name: string) => boolean
+
+  // Shutdown: called on shell exit
+  readonly destroy: () => Promise<void>
+
+  // Accessors for integration points
+  readonly getRegistry: () => PluginRegistry
+  readonly getHookBus: () => HookBus
 }
 ```
 
-**Why this works:** The SDK handles ALL conversation history storage internally. ClaudeShell only needs to track and pass the session ID. No custom message storage, no context window management, no compaction logic.
-
-### 2. Pipe-Friendly AI (pipe.ts)
-
-**Problem:** `cat log.txt | a summarize` must detect piped stdin and prepend content to the AI prompt.
-
-**Architecture:**
+### Registry (fast lookups at runtime)
 
 ```typescript
-// pipe.ts -- stateless utilities
-function isPiped(): boolean                     // !process.stdin.isTTY
-async function readPipedInput(): Promise<string> // Read all stdin to string
-function framePipedPrompt(stdinContent: string, userPrompt: string): string
+// src/plugins/registry.ts
+
+export interface PluginRegistry {
+  // Alias resolution: O(1) lookup
+  readonly resolveAlias: (word: string) => string | undefined
+
+  // Command lookup: plugin-provided commands
+  readonly resolveCommand: (name: string) => PluginCommandHandler | undefined
+
+  // Completion providers for a given command prefix
+  readonly getCompleters: (command: string) => readonly PluginCompletionProvider[]
+
+  // All registered aliases (for display)
+  readonly getAllAliases: () => ReadonlyMap<string, { alias: string; expansion: string; plugin: string }>
+
+  // Functions available as shell commands
+  readonly getAllFunctions: () => ReadonlyMap<string, PluginFunction>
+}
 ```
 
-**Integration -- two modes:**
+## Data Flow
 
-**Mode A: Single-command pipe** (`echo "data" | claudeshell a summarize`)
-- Detected in `cli.ts` before `runShell()` launches
-- If stdin is not TTY AND argv contains prompt: read stdin, execute single AI call, output raw text, exit
-- Renderer already handles non-TTY output (raw text, no markdown) -- no changes needed
+### Startup Flow
 
-**Mode B: REPL with prior pipe** (not supported)
-- If stdin is not TTY, REPL cannot read interactive input
-- This is standard shell behavior -- no special handling needed
-
-**cli.ts change:**
-```typescript
-// cli.ts
-if (!process.stdin.isTTY && process.argv.length > 2) {
-  // Pipe mode: single AI call, then exit
-  const prompt = process.argv.slice(2).join(' ')
-  const stdinContent = await readPipedInput()
-  const fullPrompt = framePipedPrompt(stdinContent, prompt)
-  await executeSingleAI(fullPrompt)
-  process.exit(0)
-}
-// Otherwise: normal REPL
-runShell()
+```
+1. cli.ts calls runShell()
+2. shell.ts loads config (existing)
+3. shell.ts creates PluginManager
+4. PluginManager.init():
+   a. Resolve profile --> list of plugin names
+   b. Discover built-in plugins from src/plugins/builtins/
+   c. Discover user plugins from ~/.nesh/plugins/
+   d. Resolve dependencies (topological sort)
+   e. For each plugin in order:
+      - Validate manifest (platform, required binaries)
+      - Import module (dynamic import)
+      - Call plugin.init(context) inside error boundary
+      - Register aliases --> Registry
+      - Register completions --> Registry
+      - Register commands --> Registry
+      - Register hooks --> HookBus
+5. shell.ts creates readline with completer from PluginCompleter
+6. REPL loop starts
 ```
 
-**Renderer already handles this:** `createRenderer({ isTTY: false })` writes raw text without markdown formatting. Zero renderer changes needed.
+### Command Flow (with plugins)
 
-### 3. PTY / Interactive Command Support (passthrough.ts extension)
+```
+User types: "gst" [Enter]
 
-**Problem:** Interactive commands (vim, ssh, less, htop) fail because `passthrough.ts` uses `spawn()` with piped stderr.
+1. shell.ts receives line "gst"
+2. HookBus.preExec("gst") --> no transform
+3. Registry.resolveAlias("gst") --> "git status"
+4. classifyInput("git status", prefix) --> { type: 'passthrough', command: 'git status' }
+5. HookBus.preCommand({ type: 'passthrough', command: 'git status' }) --> no override
+6. executeCommand("git status") runs
+7. HookBus.postCommand(action, { exitCode: 0, stderr: '' })
+8. Loop continues
+```
 
-**Recommended approach -- extend passthrough.ts, no new module:**
+### Completion Flow
+
+```
+User types: "docker r" [Tab]
+
+1. readline calls completer("docker r")
+2. PluginCompleter.complete({ line: "docker r", cursor: 8 }):
+   a. Parse words: ["docker", "r"], wordIndex: 1
+   b. Registry.getCompleters("docker") --> [dockerPlugin.completions]
+   c. Call each provider: dockerPlugin.complete(context) --> ["run", "rm", "restart"]
+   d. Filter by prefix "r" --> ["run", "rm", "restart"]
+   e. Merge with system PATH completions
+   f. Return [["run", "rm", "restart"], "r"]
+3. readline displays completion options
+```
+
+### Auto-Suggestion Flow
+
+```
+User types: "git c" (each keypress)
+
+1. Keypress event fires for each character
+2. Suggester receives current line "git c"
+3. Suggester.suggest("git c"):
+   a. Search history for entries starting with "git c"
+   b. Best match: "git commit -m" (most recent)
+   c. Ghost text: "ommit -m" (remainder after cursor)
+4. Render ghost text in dim gray after cursor position on output stream
+5. Right-arrow or End key --> accept suggestion into line buffer
+```
+
+### Syntax Highlighting Flow
+
+```
+User types: "git commit -m 'message'" (each keypress)
+
+1. Keypress event fires
+2. Highlighter receives current line buffer
+3. Highlighter.highlight("git commit -m 'message'"):
+   a. Tokenize: ["git", "commit", "-m", "'message'"]
+   b. Classify: [command:valid, subcommand, flag, string]
+   c. Map to ANSI colors: [green, cyan, yellow, magenta]
+   d. Build ANSI-colored string
+4. Clear current output line, rewrite with colors, restore cursor position
+5. rl.line remains plain text (ANSI codes only on output stream)
+```
+
+### Alias Expansion Integration Point
+
+The alias expansion step is the most critical integration between the plugin system and the existing classifier. It must happen BEFORE `classifyInput()` runs, because aliases can expand to commands that are builtins, passthroughs, or AI invocations.
 
 ```typescript
-// passthrough.ts -- add interactive execution path
-const INTERACTIVE_COMMANDS = new Set([
-  'vim', 'nvim', 'vi', 'nano', 'emacs',
-  'less', 'more', 'man',
-  'top', 'htop', 'btop',
-  'ssh', 'telnet',
-  'python', 'node', 'irb',  // REPLs
-])
+// In shell.ts REPL loop, before classifyInput:
+const expandedLine = registry.resolveAlias(line.trim().split(/\s+/)[0])
+  ? line.trim().replace(/^\S+/, registry.resolveAlias(line.trim().split(/\s+/)[0])!)
+  : line
 
-function isInteractiveCommand(command: string): boolean {
-  const firstWord = command.split(/\s/)[0]
-  return INTERACTIVE_COMMANDS.has(firstWord)
+const action = classifyInput(expandedLine, prefix)
+```
+
+This approach keeps `classifyInput()` as a pure function -- it never needs to know about aliases. The registry lookup is O(1) via Map.
+
+## Patterns to Follow
+
+### Pattern 1: Lazy Plugin Loading (Two-Phase Startup)
+
+**What:** Most of the ~300 OMZ plugins are pure alias collections. Load these synchronously as data. Defer plugins with `init()` functions to after the first prompt renders.
+
+**When:** Shell startup -- the user should see a prompt in <200ms.
+
+**Example:**
+```typescript
+// Phase 1: Synchronous data loading (<50ms)
+for (const plugin of aliasOnlyPlugins) {
+  registry.registerAliases(plugin.name, plugin.aliases)
 }
 
-function executeInteractive(command: string): Promise<CommandResult> {
+// Phase 2: After first prompt (deferred, non-blocking)
+setImmediate(async () => {
+  for (const plugin of asyncPlugins) {
+    await sandboxCall(plugin.name, () => plugin.init!(context), undefined)
+    registry.registerPlugin(plugin)
+  }
+})
+```
+
+### Pattern 2: Error-Boundary Sandbox
+
+**What:** Every plugin hook invocation runs inside a try-catch with optional timeout. A failing plugin never crashes the shell.
+
+**When:** Always. Every hook call, every init, every completion provider.
+
+**Example:**
+```typescript
+export function sandboxCall<T>(
+  pluginName: string,
+  fn: () => T | Promise<T>,
+  fallback: T,
+  timeoutMs: number = 1000,
+): Promise<T> {
   return new Promise((resolve) => {
-    const child = spawn('bash', ['-c', command], {
-      stdio: 'inherit',  // Full terminal control to child
-      env: process.env,
-    })
-    child.on('close', (code) => resolve({ exitCode: code ?? 1, stderr: '' }))
-    child.on('error', (err) => resolve({ exitCode: 127, stderr: err.message }))
+    const timer = setTimeout(() => {
+      process.stderr.write(
+        `[nesh] Plugin "${pluginName}" timed out, skipping\n`
+      )
+      resolve(fallback)
+    }, timeoutMs)
+
+    Promise.resolve()
+      .then(() => fn())
+      .then((result) => {
+        clearTimeout(timer)
+        resolve(result)
+      })
+      .catch((err) => {
+        clearTimeout(timer)
+        process.stderr.write(
+          `[nesh] Plugin "${pluginName}" error: ${(err as Error).message}\n`
+        )
+        resolve(fallback)
+      })
   })
 }
 ```
 
-**Why NOT node-pty:** node-pty requires native compilation (node-gyp, Python, C++ build tools). This would break `npm install -g claudeshell` on many systems. `stdio: 'inherit'` works for the vast majority of interactive programs without any new dependencies.
+### Pattern 3: Immutable State Integration
 
-**shell.ts integration:** Before calling `executeCommand()`, check `isInteractiveCommand()`. If true, call `executeInteractive()` instead. During interactive execution, readline is naturally paused (awaiting the promise).
+**What:** Plugin state integrates with Nesh's existing immutable `ShellState` pattern. Plugins never mutate shared state directly.
 
-**Fallback:** If a non-interactive command turns out to need a terminal, users can prefix with `!` or we detect the failure and suggest retrying interactively.
+**When:** Any plugin needs to track state across commands.
 
-### 4. Permission Control (permissions.ts)
-
-**SDK Support (HIGH confidence):** The SDK provides:
-- `permissionMode`: `'default'` | `'acceptEdits'` | `'bypassPermissions'` | `'plan'` | `'dontAsk'`
-- `canUseTool` callback: fine-grained per-tool permission control
-- `Query.setPermissionMode()`: runtime permission changes during streaming sessions
-- `allowedTools` / `disallowedTools`: tool allow/deny lists
-
-**Architecture:**
-
+**Example:**
 ```typescript
-// permissions.ts -- pure mapping functions
-type PermissionLevel = 'strict' | 'normal' | 'permissive' | 'plan'
-
-function resolvePermissionMode(level: PermissionLevel): string {
-  const map: Record<PermissionLevel, string> = {
-    strict: 'dontAsk',
-    normal: 'default',
-    permissive: 'acceptEdits',
-    plan: 'plan',
-  }
-  return map[level]
+// In types.ts, extend ShellState:
+export interface ShellState {
+  // ...existing fields...
+  readonly pluginState: Readonly<Record<string, unknown>>
 }
 
-function describePermissionLevel(level: PermissionLevel): string
-```
-
-**Mapping rationale:**
-
-| ClaudeShell Level | SDK Mode | Behavior |
-|---|---|---|
-| `strict` | `dontAsk` | Deny anything not pre-approved. Best for untrusted codebases |
-| `normal` | `default` | Standard permission prompts. Default for most users |
-| `permissive` | `acceptEdits` | Auto-accept file edits. Current v1 behavior |
-| `plan` | `plan` | Planning only, no execution. Great for exploration |
-
-**Integration:**
-- Config field: `permission_level` in config.json (default: `'permissive'` to match v1 behavior)
-- Slash command: `/permissions [level]` to change at runtime
-- Passed to `executeAI()` which forwards to SDK `options.permissionMode`
-
-### 5. Project Context (context.ts)
-
-**Problem:** AI should know about the project without the user explaining each time.
-
-**Architecture:**
-
-```typescript
-// context.ts -- project detection with caching
-interface ProjectContext {
-  readonly type: 'node' | 'python' | 'rust' | 'go' | 'unknown'
-  readonly name: string | undefined
-  readonly framework: string | undefined
-  readonly contextSnippet: string  // One-paragraph summary for system prompt
+// Plugins read through PluginContext:
+const ctx: PluginContext = {
+  state: () => currentState,
+  // Plugin state changes flow through manager,
+  // which produces a new ShellState via immutable update
 }
-
-function detectProject(cwd: string): ProjectContext  // Sync, reads marker files
 ```
 
-**Detection logic:** Check for marker files in cwd (no parent traversal needed for v2):
-- `package.json` -> Node.js, extract name + deps for framework detection (Next.js, React, Express, etc.)
-- `Cargo.toml` -> Rust, extract package name
-- `pyproject.toml` / `requirements.txt` -> Python
-- `go.mod` -> Go, extract module name
+### Pattern 4: Declarative Alias-Only Plugins
 
-**SDK integration -- use settingSources for CLAUDE.md:**
+**What:** Most oh-my-zsh plugins (~150 of ~300) are just alias collections. These should be pure data with no lifecycle code, enabling instant loading.
 
+**When:** Porting the majority of OMZ plugins.
+
+**Example:**
 ```typescript
-// In ai.ts, when building query options:
-const options = {
-  systemPrompt: {
-    type: 'preset' as const,
-    preset: 'claude_code' as const,
-    append: projectContext.contextSnippet,
+// src/plugins/builtins/git.ts
+import type { NeshPlugin } from '../types.js'
+
+export const plugin: NeshPlugin = {
+  name: 'git',
+  version: '1.0.0',
+  description: 'Git aliases and shortcuts',
+  aliases: {
+    g: 'git',
+    ga: 'git add',
+    gaa: 'git add --all',
+    gb: 'git branch',
+    gc: 'git commit',
+    gcm: 'git commit -m',
+    gco: 'git checkout',
+    gd: 'git diff',
+    gf: 'git fetch',
+    gl: 'git pull',
+    glog: 'git log --oneline --decorate --graph',
+    gp: 'git push',
+    grb: 'git rebase',
+    gst: 'git status',
+    gsw: 'git switch',
   },
-  settingSources: ['project'] as const,  // Loads CLAUDE.md automatically
 }
 ```
 
-This leverages the SDK's built-in CLAUDE.md loading. ClaudeShell adds lightweight project detection on top.
+### Pattern 5: Keypress Event Layer for Input Enhancement
 
-**Caching:** Cache `ProjectContext` per cwd. Invalidate only when `cd` command changes directory. This avoids re-reading package.json on every AI call.
+**What:** Auto-suggestions and syntax highlighting need to process each keypress after readline handles it. Use the public `readline.emitKeypressEvents()` API and `setImmediate` to avoid fighting with readline internals.
 
-### 6. Model Selection (model.ts)
+**When:** Implementing the suggester and highlighter modules.
 
-**SDK Support (HIGH confidence):** `options.model` accepts model strings. The Query object provides `setModel()` for runtime changes and `supportedModels()` to list available models.
-
-**Architecture:**
-
+**Example:**
 ```typescript
-// model.ts -- alias resolution
-type ModelAlias = 'haiku' | 'sonnet' | 'opus'
+// Conceptual approach for the input enhancement layer
+import * as readline from 'node:readline'
 
-function resolveModel(alias: string | undefined): string | undefined
-function parseModelPrefix(input: string): { model: string | undefined; cleanPrompt: string }
-function isModelAlias(s: string): s is ModelAlias
-```
+export function attachInputEnhancements(
+  rl: readline.Interface,
+  suggester: Suggester,
+  highlighter: Highlighter,
+): void {
+  // Enable keypress events on stdin
+  readline.emitKeypressEvents(process.stdin)
 
-**UX patterns:**
-- Session default: `config.model` field (already exists in ClaudeShellConfig but unused by SDK)
-- Per-query override: `a @haiku explain this error` -- parse `@alias` prefix from prompt
-- Slash command: `/model [haiku|sonnet|opus]` to change session default
-- Display: show current model in prompt template (optional, future)
+  process.stdin.on('keypress', (_str, _key) => {
+    // Process AFTER readline updates rl.line
+    setImmediate(() => {
+      const currentLine = (rl as any).line ?? ''
+      const cursorPos = (rl as any).cursor ?? 0
 
-**classify.ts integration:**
-```typescript
-// In classifyInput, when type is 'ai':
-// Extract @model prefix before returning
-if (trimmed.startsWith('a @')) {
-  const { model, cleanPrompt } = parseModelPrefix(trimmed.slice(2))
-  return { type: 'ai', prompt: cleanPrompt, model }
+      // Save cursor, move to start of input area
+      const prompt = rl.getPrompt()
+      process.stdout.write(`\r\x1b[${prompt.length}C`)
+
+      // Render syntax highlighting over the current line
+      highlighter.render(currentLine, cursorPos, process.stdout)
+
+      // Render ghost text suggestion after cursor
+      suggester.render(currentLine, cursorPos, process.stdout)
+    })
+  })
 }
 ```
 
-**InputAction extension:**
+**Important constraint:** `rl.line` is always plain text. ANSI codes are written to `process.stdout` for display only. The line buffer must never contain escape sequences, or readline's cursor math breaks (this is a known Node.js issue documented in node-v0.x-archive#3860).
+
+### Pattern 6: Completion Aggregation with Prefix Routing
+
+**What:** Route Tab completion requests to the correct plugin based on the first word (command name). Fall back to PATH-based completion for unknown commands.
+
+**When:** Implementing the completer module.
+
+**Example:**
 ```typescript
-| { readonly type: 'ai'; readonly prompt: string; readonly model?: string }
-```
+// src/plugins/completer.ts
+export function createPluginCompleter(
+  registry: PluginRegistry,
+): readline.Completer {
+  return async (line: string): Promise<[string[], string]> => {
+    const words = line.trimStart().split(/\s+/)
+    const command = words[0] ?? ''
 
-### 7. Token/Cost Display (cost.ts)
+    // If typing the first word, complete from aliases + PATH
+    if (words.length <= 1) {
+      const aliasNames = [...registry.getAllAliases().keys()]
+      const pathCommands = await getPathCommands()  // cached
+      const all = [...new Set([...aliasNames, ...pathCommands])]
+      const hits = all.filter(c => c.startsWith(command))
+      return [hits, command]
+    }
 
-**SDK Support:** SDK stream emits `result` messages that contain usage data. The exact shape depends on the SDK version but typically includes input/output token counts.
+    // For subsequent words, delegate to plugin completers
+    const completers = registry.getCompleters(command)
+    if (completers.length === 0) return [[], '']
 
-**Architecture:**
+    const currentWord = words[words.length - 1] ?? ''
+    const ctx: CompletionContext = {
+      line,
+      cursor: line.length,
+      words,
+      wordIndex: words.length - 1,
+    }
 
-```typescript
-// cost.ts -- extraction and formatting
-interface UsageInfo {
-  readonly inputTokens: number
-  readonly outputTokens: number
-  readonly estimatedCostUsd: number
-}
+    const results = await Promise.all(
+      completers.map(c => sandboxCall(c.triggers?.[0] ?? 'unknown', () => c.complete(ctx), []))
+    )
 
-function extractUsage(resultMessage: SDKMessage): UsageInfo | undefined
-function formatUsage(usage: UsageInfo): string  // e.g., "428 in / 156 out (~$0.002)"
-```
-
-**Integration with ai.ts and renderer.ts:**
-- `ai.ts` watches for `result` type messages in the stream and extracts usage
-- After stream completes, passes usage to renderer
-- `renderer.finish(usage?)` appends a dim cost line after the response
-
-**Confidence:** MEDIUM -- the exact usage fields in SDKMessage need verification against the installed SDK version. The `result` message structure may vary.
-
-### 8. Configurable AI Prefix (classify.ts change)
-
-**Current:** Hard-coded `a` prefix check in `classify.ts` line 10.
-
-**Change:** Accept prefix from config.
-
-```typescript
-// classify.ts
-export function classifyInput(line: string, aiPrefix: string = 'a'): InputAction {
-  const trimmed = line.trim()
-  if (!trimmed) return { type: 'empty' }
-  if (trimmed === aiPrefix || trimmed.startsWith(aiPrefix + ' ')) {
-    return { type: 'ai', prompt: trimmed.slice(aiPrefix.length + 1).trim() }
-  }
-  // ... rest unchanged
-}
-```
-
-**Config extension:**
-```typescript
-interface ClaudeShellConfig {
-  // existing fields...
-  readonly ai_prefix?: string  // default: 'a'
-}
-```
-
-**shell.ts change:** Pass `config.ai_prefix` to `classifyInput()`.
-
-### 9. Per-Project Configuration (config.ts extension)
-
-**Architecture:** Layer project config on top of global config.
-
-```typescript
-// config.ts extension
-function loadProjectConfig(cwd: string): Partial<ClaudeShellConfig>
-function mergeConfig(
-  global: ClaudeShellConfig,
-  project: Partial<ClaudeShellConfig>
-): ClaudeShellConfig
-```
-
-**Location:** `.claudeshell.json` in project root (detected via git root or cwd).
-
-**Precedence:** project config > global config > defaults. Mirrors the SDK's own `settingSources` precedence pattern.
-
-### 10. Slash Commands (classify.ts + shell.ts)
-
-**New InputAction variant:**
-```typescript
-| { readonly type: 'slash'; readonly command: string; readonly args: string }
-```
-
-**classify.ts extension:**
-```typescript
-if (trimmed.startsWith('/')) {
-  const spaceIdx = trimmed.indexOf(' ')
-  const command = spaceIdx === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx)
-  const args = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim()
-  return { type: 'slash', command, args }
-}
-```
-
-**Supported slash commands:**
-| Command | Handler | Description |
-|---------|---------|-------------|
-| `/session new` | session.ts | Start fresh AI session |
-| `/session list` | session.ts | List recent sessions |
-| `/session resume <id>` | session.ts | Resume a past session |
-| `/model [alias]` | model.ts | Show/change model |
-| `/permissions [level]` | permissions.ts | Show/change permission level |
-| `/context` | context.ts | Show detected project context |
-| `/cost` | cost.ts | Show cumulative session cost |
-| `/help` | shell.ts | List available commands |
-
-**shell.ts dispatch:** Add a `case 'slash':` branch to the main switch, dispatching to the appropriate module function.
-
-## Patterns to Follow
-
-### Pattern 1: State Extension via Spread
-**What:** All new state fields added to `ShellState`, updated immutably via spread.
-**When:** Any feature that needs to persist data across REPL iterations.
-```typescript
-state = { ...state, sessionId: newId }
-```
-
-### Pattern 2: Module as Capability
-**What:** Each v2 feature is a separate module exporting pure functions. No classes, no singletons, no module-level mutable state.
-**When:** Adding any new feature.
-**Why:** Matches v1 pattern, keeps testing simple, avoids hidden state.
-
-### Pattern 3: Classify-Then-Dispatch
-**What:** Extend `InputAction` union type for new command patterns, dispatch in shell.ts switch.
-**When:** Adding slash commands or new input patterns.
-
-### Pattern 4: SDK Options Builder
-**What:** Build SDK query options from multiple sources (session, model, permissions, context) in a single function in ai.ts.
-**When:** Every AI call.
-```typescript
-function buildQueryOptions(params: {
-  cwd: string
-  sessionId?: string
-  model?: string
-  permissionLevel: PermissionLevel
-  projectContext: ProjectContext
-  abortController: AbortController
-}): Record<string, unknown> {
-  return {
-    abortController: params.abortController,
-    cwd: params.cwd,
-    model: params.model ? resolveModel(params.model) : undefined,
-    resume: params.sessionId,
-    permissionMode: resolvePermissionMode(params.permissionLevel),
-    systemPrompt: {
-      type: 'preset',
-      preset: 'claude_code',
-      append: params.projectContext.contextSnippet,
-    },
-    settingSources: ['project'],
-    allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
-    includePartialMessages: true,
+    const merged = [...new Set(results.flat())]
+    const hits = merged.filter(c => c.startsWith(currentWord))
+    return [hits, currentWord]
   }
 }
 ```
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: God Module
-**What:** Putting session, model, permission, and context logic directly into shell.ts or ai.ts.
-**Why bad:** shell.ts is 175 lines of clean REPL orchestration. Adding feature logic makes it unmaintainable.
-**Instead:** Each feature gets its own module. shell.ts only dispatches.
+### Anti-Pattern 1: Global Mutable Plugin State
 
-### Anti-Pattern 2: Class-Based State Management
-**What:** Creating a `ShellSession` class that holds mutable internal state.
-**Why bad:** Breaks the immutable state pattern that v1 uses successfully. Introduces hidden mutation and makes state changes hard to trace.
-**Instead:** Keep `ShellState` as a readonly interface, update via spread.
+**What:** Letting plugins store state in module-level variables that persist and leak between plugins.
 
-### Anti-Pattern 3: Custom Session Storage
-**What:** Building custom conversation history storage for session continuity.
-**Why bad:** The SDK already handles session persistence via `resume` and `sessionId`. Duplicating this is unnecessary work and creates synchronization bugs.
-**Instead:** Use SDK's native session management. Store only the session ID in ShellState.
+**Why bad:** Violates Nesh's immutable state principle. Makes plugins untestable. State leaks cause subtle bugs across unrelated plugins.
 
-### Anti-Pattern 4: Synchronous Project Detection on Every AI Call
-**What:** Running `execFileSync('git', ...)` and reading package.json every time the user types `a`.
-**Why bad:** Adds 50-200ms latency to every AI request.
-**Instead:** Cache project context per cwd. Invalidate only on `cd` commands.
+**Instead:** All plugin state flows through `PluginContext.state()`, stored immutably in `ShellState.pluginState[pluginName]`. State changes go through the manager which produces a new state object.
 
-### Anti-Pattern 5: node-pty as Required Dependency
-**What:** Making node-pty a required dependency for interactive command support.
-**Why bad:** node-pty requires native compilation (node-gyp, Python, C++ toolchain). Breaks `npm install -g claudeshell` on many systems without build tools.
-**Instead:** Use `stdio: 'inherit'` for interactive commands (zero dependencies). Only consider node-pty as optional if users report issues.
+### Anti-Pattern 2: Synchronous Loading of All 300 Plugins at Startup
 
-### Anti-Pattern 6: Monolithic executeAI Refactor
-**What:** Turning `executeAI()` into a 200-line function that handles sessions, models, permissions, context, cost tracking, etc.
-**Why bad:** Single-responsibility violation. Hard to test individual features.
-**Instead:** Each feature module exports helpers. `executeAI()` composes them via the options builder pattern.
+**What:** Loading and initializing every enabled plugin synchronously before showing the first prompt.
 
-## Module Dependency Graph
+**Why bad:** Shell startup becomes multi-second. Users feel lag before first prompt. This is why oh-my-zsh itself is criticized for slow startup.
+
+**Instead:** Two-phase loading. Phase 1 (sync, <50ms): load manifests and pure-data plugins (aliases, static completions). Phase 2 (deferred via setImmediate): initialize plugins with async `init()` functions after the first prompt renders. Completion providers lazy-load on first Tab press.
+
+### Anti-Pattern 3: Subprocess-Based OMZ Plugin Delegation
+
+**What:** Running original `.plugin.zsh` files in a zsh subprocess and scraping output.
+
+**Why bad:** Defeats the cross-platform goal. Adds 50-200ms per plugin per invocation. Two shell interpreters running simultaneously. Impossible to integrate with Node.js readline completions.
+
+**Instead:** Native TypeScript reimplementation. The ~300 OMZ plugins break down to: ~150 alias-only (trivial port), ~80 completion-only (port to completer interface), ~50 with shell functions (port to PluginFunction), ~20 with complex logic (careful porting needed).
+
+### Anti-Pattern 4: Monkey-Patching readline Internals
+
+**What:** Overriding private readline methods like `_insertString`, `_ttyWrite`, or `_refreshLine` for syntax highlighting.
+
+**Why bad:** Private APIs break between Node.js versions. Already caused issues in Node 20 to 22 migration. Tightly couples the plugin system to runtime internals.
+
+**Instead:** Use the public keypress event layer. Write ANSI output to stdout after readline processes each keypress. Use `readline.clearLine()` and `readline.cursorTo()` for repositioning. The line buffer (`rl.line`) stays plain text; coloring is output-only.
+
+### Anti-Pattern 5: Plugin-to-Plugin Direct Coupling
+
+**What:** Plugin A directly imports and calls functions from Plugin B.
+
+**Why bad:** Loading order becomes fragile. Disabling Plugin B breaks Plugin A silently. Circular dependencies emerge.
+
+**Instead:** Plugins communicate only through the hook bus and registry. If Plugin A needs functionality from Plugin B, it declares B as a dependency and uses `PluginContext` to query registered completions/functions.
+
+### Anti-Pattern 6: Embedding Plugin Logic in shell.ts
+
+**What:** Adding plugin dispatch logic, alias resolution, and hook calls directly into the REPL loop switch cases.
+
+**Why bad:** shell.ts is currently ~350 lines of clean dispatcher code. Embedding plugin logic would double its size and violate single responsibility.
+
+**Instead:** shell.ts calls PluginManager/HookBus/Registry through clean interfaces. The integration points are: (1) alias expansion before classify, (2) hook calls before/after each case, (3) completer function passed to readline, (4) input enhancement attachment. Each is 1-3 lines in shell.ts, with all logic in the plugin modules.
+
+## Plugin Directory Layout
 
 ```
-cli.ts
-  -> pipe.ts (NEW -- detect pipe mode before REPL)
-  -> shell.ts
-       -> classify.ts -> types.ts
-       -> builtins.ts -> types.ts, templates.ts, prompt.ts
-       -> passthrough.ts (EXTENDED -- interactive detection)
-       -> ai.ts -> config.ts, types.ts
-       |    -> session.ts (NEW)
-       |    -> model.ts (NEW)
-       |    -> permissions.ts (NEW)
-       |    -> context.ts (NEW)
-       |    -> cost.ts (NEW)
-       -> renderer.ts -> cost.ts (NEW)
-       -> config.ts (EXTENDED -- project config)
-       -> history.ts
-       -> prompt.ts
-       -> templates.ts -> prompt.ts
-       -> types.ts (EXTENDED)
+~/.nesh/
+  config.json              # Existing: add plugins[], profile fields
+  plugins/                 # User-installed plugins (git clone target)
+    my-custom-plugin/
+      index.ts             # Default export: NeshPlugin
+      package.json         # name, version, nesh engine compat
+
+src/plugins/
+  types.ts                 # Plugin interfaces and type definitions
+  manager.ts               # Plugin lifecycle management
+  loader.ts                # Plugin discovery and dynamic import
+  registry.ts              # Runtime alias/completion/command registry
+  hooks.ts                 # Hook bus for REPL lifecycle events
+  completer.ts             # Completion aggregation for readline
+  highlighter.ts           # Syntax highlighting engine
+  suggester.ts             # Auto-suggestion engine
+  resolver.ts              # Dependency resolution (topological sort)
+  sandbox.ts               # Error boundaries and timeouts
+  profiles.ts              # Curated plugin sets
+  cli.ts                   # Plugin management commands
+
+  builtins/                # Ships with nesh (~300 ported OMZ plugins)
+    index.ts               # Plugin catalog: name --> lazy import
+    git.ts                 # Alias-only: pure data
+    docker.ts              # Aliases + completions
+    node.ts                # Aliases + completions + nvm detection
+    kubectl.ts             # Aliases + completions (lazy binary check)
+    python.ts              # Aliases + virtualenv detection
+    ...
+
+  profiles/
+    core.ts                # Essential: git, cd-enhancements, history-search
+    developer.ts           # core + node, python, docker, editor
+    devops.ts              # developer + kubectl, terraform, aws
+    cloud.ts               # devops + gcloud, azure
+    ai-engineer.ts         # developer + python-ml, jupyter, conda
 ```
 
-**New module count:** 6 new files (session, model, permissions, context, pipe, cost)
-**Modified modules:** 7 (types, classify, ai, config, renderer, passthrough, shell)
-**Unchanged modules:** 5 (cli, builtins, history, prompt, templates)
-**Total:** ~19 modules
+## Integration Points Summary
+
+| Nesh REPL Event | Hook Point | Plugin Capability |
+|-----------------|-----------|-------------------|
+| Shell startup | `PluginManager.init()` | Load plugins, register aliases/completions |
+| Before prompt render | `hooks.promptRender` | Add segments (git status, venv, kube context) |
+| After readline input received | Alias expansion pre-classify | Expand `gst` to `git status` |
+| Before command execution | `hooks.preCommand` | Modify or block commands |
+| After command execution | `hooks.postCommand` | Track command results, update state |
+| Tab keypress | `completer` function | Plugin-provided completions |
+| Each keypress | Keypress event handler | Syntax highlighting, auto-suggestions |
+| Directory change (cd) | `hooks.chpwd` | Update venv, node version, kube context |
+| Environment variable change | `hooks.envChange` | React to PATH, NODE_ENV changes |
+| Shell exit | `PluginManager.destroy()` | Cleanup resources |
 
 ## Scalability Considerations
 
-| Concern | Current (v1) | v2 Target | Notes |
-|---------|-------------|-----------|--------|
-| Session storage | None | SDK manages on disk | No custom storage needed |
-| Module count | 13 files | ~19 files | Stable, each small and focused |
-| Config fields | 4 fields | ~8 fields | Per-project layering |
-| Startup time | <100ms | <150ms (project detect) | Lazy-load SDK unchanged |
-| AI latency | 2-3s cold start | Same + session resume benefit | SDK handles context restore |
-| Runtime deps | 4 packages | 4 packages (no new deps) | Critical constraint |
+| Concern | 10 plugins | 50 plugins | 300 plugins |
+|---------|------------|------------|-------------|
+| Startup time | <50ms (all sync) | <100ms (two-phase) | <200ms (lazy + deferred) |
+| Memory | ~2MB (base + plugins) | ~5MB | ~15MB (alias maps dominate) |
+| Tab completion | Instant (few providers) | <50ms (filtered dispatch) | <100ms (prefix-based routing) |
+| Alias resolution | O(1) Map lookup | O(1) Map lookup | O(1) Map lookup |
+| Hook dispatch | <1ms (few hooks) | <5ms (linear scan) | <10ms (priority-sorted, bail-early) |
+
+### Startup Optimization Strategy
+
+```
+Phase 0 (sync, <10ms):  Load config, resolve profile name
+Phase 1 (sync, <50ms):  Import alias-only plugins (pure data, no I/O)
+Phase 2 (sync, <20ms):  Register aliases + static completions in registry
+                         Show first prompt -- user can start typing
+Phase 3 (async, deferred): In background after first prompt:
+                           - Initialize plugins with init() functions
+                           - Validate required binaries exist (which, command -v)
+                           - Pre-cache frequently used completions
+```
+
+## Build Order (respecting dependencies)
+
+The plugin framework has clear internal dependencies that dictate build order:
+
+```
+Phase A: Foundation (no internal deps)
+  1. src/plugins/types.ts       -- interfaces only, depends on nothing
+  2. src/plugins/sandbox.ts     -- depends only on types
+
+Phase B: Core Infrastructure (depends on A)
+  3. src/plugins/registry.ts    -- depends on types
+  4. src/plugins/hooks.ts       -- depends on types
+  5. src/plugins/resolver.ts    -- depends on types (topological sort)
+
+Phase C: Plugin Loading (depends on A + B)
+  6. src/plugins/loader.ts      -- depends on types, sandbox
+  7. src/plugins/manager.ts     -- depends on types, registry, hooks, resolver, loader, sandbox
+
+Phase D: Input Enhancement (depends on B)
+  8. src/plugins/completer.ts   -- depends on registry, sandbox
+  9. src/plugins/suggester.ts   -- depends on registry (for alias-aware suggestions)
+  10. src/plugins/highlighter.ts -- standalone, uses registry for command validation
+
+Phase E: User-Facing (depends on C)
+  11. src/plugins/profiles.ts   -- depends on types (data only)
+  12. src/plugins/cli.ts        -- depends on manager
+
+Phase F: Existing Module Integration (depends on C + D)
+  13. Modify src/types.ts       -- add plugin fields to ShellState
+  14. Modify src/config.ts      -- add plugin config fields
+  15. Modify src/classify.ts    -- alias expansion pre-step
+  16. Modify src/builtins.ts    -- add 'plugin' builtin name
+  17. Modify src/shell.ts       -- wire manager, completer, hooks, input enhancements
+  18. Modify src/history.ts     -- export read-only access for suggester
+
+Phase G: Built-in Plugins (depends on A, can parallel with C-F)
+  19. src/plugins/builtins/git.ts
+  20. src/plugins/builtins/docker.ts
+  21. ... (remaining ~298 plugins, highly parallelizable)
+```
 
 ## Sources
 
-- [Claude Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) -- HIGH confidence, official documentation, verified 2026-03-31
-- [Claude Agent SDK npm package](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) -- v0.2.88 installed in project
-- SDK type definitions: `node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts` -- HIGH confidence, source of truth for API shape
-- Existing codebase: all 13 source files in `src/` -- HIGH confidence, direct analysis
-- [Node.js readline/promises](https://nodejs.org/api/readline.html) -- HIGH confidence, stdlib
+- [Oh My Zsh Wiki - Plugins](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins)
+- [Oh My Zsh Wiki - Design](https://github.com/ohmyzsh/ohmyzsh/wiki/Design)
+- [Oh My Zsh Wiki - Plugins Overview](https://github.com/ohmyzsh/ohmyzsh/wiki/Plugins-Overview)
+- [Zsh Plugin Standard](https://wiki.zshell.dev/community/zsh_plugin_standard)
+- [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
+- [zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting)
+- [Node.js Readline API](https://nodejs.org/api/readline.html)
+- [Node.js readline ANSI cursor issue](https://github.com/nodejs/node-v0.x-archive/issues/3860)
+- [Designing a Plugin System in TypeScript](https://dev.to/hexshift/designing-a-plugin-system-in-typescript-for-modular-web-applications-4db5)
+- [Node.js Plugin Manager Patterns](https://v-checha.medium.com/node-js-advanced-patterns-plugin-manager-44adb72aa6bb)
+- [How to Build Plugin Architecture in Node.js (2026)](https://oneuptime.com/blog/post/2026-01-26-nodejs-plugin-architecture/view)
+- [emphasize - ANSI syntax highlighting](https://github.com/wooorm/emphasize)

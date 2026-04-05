@@ -1,324 +1,469 @@
 # Domain Pitfalls
 
-**Domain:** AI-powered shell / CLI wrapping Claude Code SDK
-**Researched:** 2026-03-31
-**Scope:** v2 features -- session management, pipe-friendly AI, PTY support, permission control
-**Note:** v1 pitfalls (shell injection, REPL blocking, cd/env desync, TTY corruption, etc.) are assumed addressed. This document covers pitfalls specific to ADDING v2 features to the existing system.
+**Domain:** oh-my-zsh plugin ecosystem port to TypeScript/Node.js shell (Nesh v3.0)
+**Researched:** 2026-04-03
+**Scope:** Adding a full plugin ecosystem to an existing AI-native terminal shell
+**Note:** v2 pitfalls (session management, PTY, pipes, permissions) are assumed addressed. This document covers pitfalls specific to the plugin ecosystem milestone.
+
+---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, data loss, or broken user experience.
+Mistakes that cause rewrites, major performance regressions, or security incidents.
 
-### Pitfall 1: Session Resume Fails Silently Due to CWD Mismatch
+### Pitfall 1: Readline Cannot Do Real-Time Input Coloring or Inline Suggestions
 
-**What goes wrong:** Sessions are stored under `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`, where `<encoded-cwd>` is the absolute working directory with every non-alphanumeric character replaced by `-`. If a user runs `a analyze this codebase` from `/Users/me/project`, then `cd`s to `/Users/me/project/src` and types `a continue that analysis`, the SDK looks in the wrong directory and silently creates a fresh session instead of resuming. The user thinks context is preserved but the AI has no memory of the prior conversation.
+**What goes wrong:** Node.js `readline` calculates cursor position based on string length in the line buffer. ANSI escape codes injected for syntax highlighting are invisible characters that corrupt this calculation, causing the cursor to jump to wrong positions, text to wrap incorrectly, and input to become garbled. This is a [known, longstanding Node.js issue](https://github.com/nodejs/node-v0.x-archive/issues/3860). Auto-suggestions require rendering "ghost text" after the cursor and accepting it on right-arrow -- readline has zero API for this.
 
-**Why it happens:** The SDK's `continue: true` option finds the most recent session *in the current directory*. ClaudeShell changes `process.cwd()` when the user runs `cd`, which changes the encoded path used for session lookup. This is invisible to the user -- nothing indicates the session wasn't actually resumed.
+**Why it happens:** `readline` was designed for simple line-by-line input, not as a terminal UI framework. The [node-color-readline](https://github.com/aantthony/node-color-readline) package attempted to solve this 9 years ago and was abandoned -- the approach is fundamentally broken because readline's internal cursor tracking cannot be overridden without monkey-patching private state.
 
-**Consequences:** Users rely on session continuity as a core feature. Silent session loss means repeated work, lost analysis context, and confusion when the AI "forgets" what it just said. Worse, the user may not realize it happened until several commands later.
+There are two distinct sub-problems:
+- **Syntax highlighting:** Must NEVER put ANSI codes in `rl.line`. The line buffer must remain plain text. Highlighting is output-only: save cursor position, move to start of input area, write ANSI-colored version, restore cursor.
+- **Auto-suggestions ghost text:** Requires rendering dim text AFTER the cursor position that is not part of the actual input buffer. readline has no concept of "display text that is not input." Accepting the suggestion (right-arrow) must replace the buffer contents.
+
+**Consequences:** If you bolt these features onto `readline`:
+- Cursor position corruption on every colored re-render
+- Broken line wrapping when input exceeds terminal width
+- Ghost text that persists after acceptance or appears at wrong offset
+- Flickering on every keystroke as you clear and re-render
+- The current `shell.ts` REPL loop (line 44-50) creates `readline.createInterface` that owns stdin -- this must eventually be replaced
 
 **Prevention:**
-- Track the session ID explicitly from the `ResultMessage.session_id` field -- never rely solely on `continue: true`
-- When resuming, always use `resume: sessionId` with the stored session ID, not `continue: true`
-- Store the active session ID in `ShellState` and pass it to every `query()` call
-- When the user runs `cd`, the session should continue with the same session ID (use explicit resume, not directory-based lookup)
-- Provide visual feedback: display "(session: abc123)" in the prompt or a status indicator so users can see which session is active
-- On `/fresh` or session reset, explicitly clear the stored session ID
+1. **Phase correctly.** Ship the plugin framework first with standard readline. The plugin framework provides the DATA (completions, aliases, hooks). The custom input engine CONSUMES that data later. These are separate concerns.
+2. **For highlighting within readline constraints:** Use output-only rendering. After each keypress, use `readline.clearLine()` and `readline.cursorTo()` to rewrite the colored line, then restore cursor. Never modify `rl.line` with ANSI codes.
+3. **For full auto-suggestions:** Build a custom input handler using `process.stdin.setRawMode(true)` with manual keypress parsing, cursor tracking, and ANSI rendering. This is what zsh-autosuggestions and fish do -- they own the entire input pipeline. Study the [zsh-autosuggestions strategy pattern](https://deepwiki.com/zsh-users/zsh-autosuggestions) (history, completion, match_prev_cmd).
+4. **Test rigorously:** Lines >80 chars (wrap boundary), Unicode characters (multi-byte width), terminal resize during input, rapid typing (>5 chars/sec).
 
-**Detection:** Run `a hello` from `/project`, `cd src`, then `a what did I just say`. If the AI has no context from the prior greeting, session resume is broken.
+**Detection:** Type a command >30 characters with highlighting enabled. If the cursor is not where it should be, ANSI codes have leaked into the line buffer. If ghost text from suggestions does not disappear after acceptance, the rendering model is wrong.
 
-**Phase:** Must be correct in the session management implementation. Fundamental design decision.
-
-**Confidence:** HIGH -- documented in official Claude SDK session docs as the most common `resume` pitfall.
+**Risk:** CRITICAL
+**Phase:** Architecture decision in Phase 1. Plugin framework can ship before this is solved (plugins provide data; rendering engine consumes it later). Custom input engine is a dedicated phase.
 
 ---
 
-### Pitfall 2: readline and node-pty Fighting Over stdin
+### Pitfall 2: Loading 300 Plugins Synchronously Kills Startup Time
 
-**What goes wrong:** The existing shell uses Node.js `readline` to manage the REPL prompt. Adding `node-pty` for interactive program support (vim, ssh, less) creates two systems competing for `process.stdin`. When a PTY-spawned program is running, readline must completely yield stdin control. When the program exits, readline must cleanly reclaim stdin. Getting this handoff wrong causes lost keystrokes (~50% randomly dropped), double-echoed input, or a completely frozen shell.
+**What goes wrong:** Eagerly `import()`-ing 300 plugin modules at startup adds 2-5 seconds of load time. Each file must be read from disk, parsed by V8, and have its top-level code executed. oh-my-zsh suffers this exact problem -- [users report 1-5 second startup times](https://github.com/ohmyzsh/ohmyzsh/issues/5327) and the primary fix is disabling plugins. Zinit and [lazy.nvim](https://deepwiki.com/folke/lazy.nvim/4.2-plugin-loading-and-initialization) exist specifically because this problem is so severe.
 
-**Why it happens:** Node.js documents that there should be only one `tty.ReadStream` instance reading stdin at a time. `readline` sets raw mode on stdin for its prompt handling. `node-pty` allocates a separate pseudo-terminal that needs its own input stream. If both are active simultaneously, keystrokes are split randomly between them. The handoff on program exit is also fragile -- readline must re-enter raw mode and redisplay the prompt without corrupting terminal state.
+**Why it happens:** The natural implementation is `for (plugin of enabled) await import(plugin)`. This is correct but scales terribly. Version manager plugins (nvm, rbenv, pyenv) are especially expensive because they shell out to detect installed versions at load time. One user [reduced zsh startup from 1.5s to 200ms](https://armno.in.th/blog/zsh-startup-time/) just by lazy-loading nvm.
 
-**Consequences:** Users type commands and characters disappear. Interactive programs behave erratically. After exiting vim or ssh, the shell prompt is broken or keystrokes echo twice.
+**Consequences:**
+- Shell takes 3-5 seconds to show first prompt (users expect < 200ms)
+- Users disable plugins to restore speed, defeating the ecosystem
+- "nesh is slow" becomes the dominant complaint on day one
+- Startup time grows linearly with enabled plugins, no ceiling
 
 **Prevention:**
-- Before spawning a PTY child: call `rl.pause()`, disable raw mode, pipe `process.stdin` directly to the PTY
-- After PTY child exits: re-enable raw mode, call `rl.resume()`, redisplay the prompt
-- Never have readline and a PTY child reading stdin simultaneously
-- Consider a state machine: `IDLE` (readline owns stdin), `PASSTHROUGH` (child process owns stdin via spawn inherit), `PTY` (node-pty owns stdin). Transitions must be atomic
-- Test with: vim (full TUI), ssh (remote session), less (pager), ctrl+c inside PTY program, rapid exit-and-type sequences
+1. **Lazy loading IS the architecture, not an optimization.** Every plugin ships a static `manifest.json` declaring aliases, completions, commands, and hooks. The loader reads manifests (fast JSON parse) and defers `import()` until first invocation.
+2. **Two-phase loading:** Phase 1 (sync, <50ms) registers alias-only plugins as pure data (object literals, no `import()`). Phase 2 (deferred via `setImmediate`) initializes plugins with `init()` functions AFTER the first prompt renders.
+3. **Manifest pre-compilation.** On first run or after plugin changes, compile all manifests into a single `manifest-cache.json`. Subsequent startups read one file instead of 300.
+4. **Benchmark gate in CI.** `time nesh -c exit` must complete in < 300ms with default profile. Fail CI if exceeded.
+5. **`nesh plugin times` command** showing per-plugin load time so users can identify slow plugins.
+6. **Follow existing pattern:** Nesh already lazy-loads the Claude Agent SDK on first `a` command (good pattern in `ai.ts`). Apply the same pattern to every plugin.
 
-**Detection:** Open vim via the shell, type text, exit. Immediately type a command. If characters are missing or doubled, the handoff is broken.
+**Detection:** Measure `process.hrtime()` from process start to first prompt display. If > 500ms with default plugins, this pitfall is active.
 
-**Phase:** PTY support implementation. Must be designed before any PTY code is written.
-
-**Confidence:** HIGH -- Node.js issue #5574 documents the exact keystroke-loss pattern with multiple stdin readers.
+**Risk:** CRITICAL
+**Phase:** Must be solved in plugin loader architecture (Phase 1). Retrofitting lazy loading onto an eager loader requires rewriting every plugin's initialization contract.
 
 ---
 
-### Pitfall 3: Pipe Input Destroys the Interactive REPL
+### Pitfall 3: Zsh Plugins Are Not "Portable Aliases" -- They Use Deep Shell Internals
 
-**What goes wrong:** When stdin is piped (`cat file.txt | claudeshell` or `echo "a summarize" | claudeshell`), `process.stdin.isTTY` is `false`. The current readline interface is initialized with `terminal: true`, which will break. More subtly, the `a` command pipe use case (`cat log.txt | a summarize`) requires reading piped data as context while KEEPING the REPL interactive -- two fundamentally different stdin modes at the same time.
+**What goes wrong:** Developers assume OMZ plugins are just collections of aliases that can be trivially translated to TypeScript. In reality, ~40% of OMZ plugins use zsh-specific features with no direct Node.js equivalent:
 
-**Why it happens:** Unix pipes replace stdin with a pipe fd. `process.stdin.isTTY` becomes `undefined`/`false`. readline configured with `terminal: true` on a non-TTY stdin causes either a crash ("Raw mode is not supported") or silent malfunction. Claude Code itself had issue #1072 and #5925 documenting this exact crash pattern. The harder problem is that `cat file.txt | a summarize` needs to: (1) read all piped data from stdin, (2) pass it as context to the AI prompt, (3) return to interactive mode for the response -- but stdin is exhausted after step 1.
+| Zsh Feature | What It Does | Node.js Equivalent |
+|---|---|---|
+| `compdef` / `compadd` | Register context-aware completions | None -- must build completion engine |
+| `zle` widgets | Custom keybinding handlers modifying input line | None -- must build input engine |
+| `precmd` / `preexec` hooks | Run code before prompt / before command | Must build hook system |
+| `zstyle` | Hierarchical configuration for completion | Must build config system |
+| `autoload -Uz` | Lazy function loading from fpath | Dynamic `import()` (different semantics) |
+| `$BUFFER` / `$CURSOR` / `$LBUFFER` | Direct access to live input buffer | None in readline |
+| `TRAPINT` / `TRAPUSR1` | Signal handler functions | `process.on('SIGINT')` (different scope) |
 
-**Consequences:** Users who try to pipe data into the shell get crashes or hangs. The pipe workflow -- one of the most requested v2 features -- simply does not work.
+**Why it happens:** The git plugin (most popular) looks like "just aliases." But the docker plugin uses `compdef` extensively. The vi-mode plugin rewrites `zle` widgets. The history-substring-search plugin manipulates `$BUFFER` directly. Each category requires a different porting strategy, and the easy ones create false confidence.
+
+**Consequences:**
+- 1:1 porting is impossible for ~120 plugins that use zsh internals
+- Ported plugins silently lose core functionality (completions missing, keybindings gone)
+- Users compare against real OMZ and find Nesh plugins "broken"
+- Scope balloons as each new zsh primitive is discovered mid-implementation
 
 **Prevention:**
-- Detect pipe vs TTY at startup: if `process.stdin.isTTY` is false, switch to non-interactive mode automatically
-- For non-interactive mode: read all stdin, process the `a` command, output result to stdout (plain text, no colors), exit
-- For the hybrid case (`cat file.txt | a summarize` within an interactive session): this is NOT piping into claudeshell -- it is claudeshell detecting that a subcommand's stdin should come from a pipe. Implement this as a shell syntax feature, not stdin multiplexing
-- Alternative approach: use the shell's passthrough to bash, which naturally handles pipes. `cat file.txt | a summarize` can be rewritten internally as reading the file content and injecting it into the AI prompt
-- Check `process.stdout.isTTY` separately for output formatting -- piped output should be plain text without ANSI codes or markdown rendering
-- Claude Code SDK's `--output-format json` flag is useful for programmatic consumers
+1. **Audit and categorize all 300 plugins before writing code.** Three buckets:
+   - **Alias-only** (~100 plugins): Direct port. Examples: git, npm, yarn, brew.
+   - **Completion-dependent** (~120 plugins): Require Nesh completion system. Examples: docker, kubectl, aws.
+   - **Zsh-internal** (~80 plugins): Need equivalent Nesh APIs or full reimplementation. Examples: vi-mode, auto-suggestions, syntax-highlighting, history-substring-search.
+2. **Build the plugin API surface before porting.** Define Nesh equivalents for: aliases, completions (context-aware), pre/post command hooks, keybindings, prompt segments.
+3. **Port in waves by category.** Alias-only first (quick wins), then completion-dependent (after engine exists), then zsh-internal (hardest, requires custom input engine).
+4. **Do not promise "all 300 OMZ plugins ported."** Promise "all 300 plugin capabilities available" -- many will be reimplementations with matching user-facing behavior.
 
-**Detection:** Run `echo "hello" | claudeshell` -- should not crash. Run `cat large_file.txt | claudeshell -p "summarize"` -- should output a plain-text summary.
+**Detection:** If the first 20 ported plugins are all alias-only and the team reports "porting is easy," the hard 200 have been deferred.
 
-**Phase:** Pipe support implementation. Requires architectural decision on how piped context reaches the AI.
-
-**Confidence:** HIGH -- Claude Code issues #1072, #5925 document the exact "Raw mode not supported" crash. The pipe architecture challenge is well-understood from tools like `aichat` and `gh copilot suggest`.
+**Risk:** CRITICAL
+**Phase:** Plugin audit in research/design. Plugin API surface defined before any porting begins. This determines the entire phase structure.
 
 ---
 
-### Pitfall 4: Permission Escalation Through Session Resume
+### Pitfall 4: Running Untrusted Plugin Code from Git Repos Without Sandboxing
 
-**What goes wrong:** A session created with restrictive permissions (`allowedTools: ["Read", "Grep"]`) is resumed later with more permissive settings (e.g., `permissionMode: "acceptEdits"` or `bypassPermissions`). The AI now has access to tools and actions that were denied in the original session. Conversely, a session created with broad permissions might be resumed with restrictions, but the AI's conversation history contains results from tools that are now denied -- leading to inconsistent state.
+**What goes wrong:** Users install plugins from arbitrary git repos. These execute with full Node.js permissions: filesystem access, network, environment variables (API keys, SSH keys, AWS credentials), child process spawning. A malicious plugin can exfiltrate `~/.ssh`, `~/.aws/credentials`, or any API key in the environment.
 
-**Why it happens:** The SDK applies the *current query's* permission options, not the original session's. Session resume restores conversation history but does not restore the permission context. Developers assume "same session = same permissions" but this is not how the SDK works. The `bypassPermissions` warning in the SDK docs explicitly states that all subagents inherit this mode and it cannot be overridden.
+**Why it happens:** Node.js has no built-in permission boundary for loaded modules. The `vm` module is [explicitly insecure](https://snyk.io/blog/security-concerns-javascript-sandbox-node-js-vm-module/) for untrusted code. `vm2` has been [abandoned due to unfixable sandbox escapes](https://github.com/patriksimek/vm2) -- in January 2026 [another critical escape was found](https://thehackernews.com/2026/01/critical-vm2-nodejs-flaw-allows-sandbox.html). In-process JavaScript sandboxing is a fundamentally unsolved problem.
 
-**Consequences:** Untrusted or shared sessions could be weaponized to escalate permissions. A user who carefully restricted AI access in one context gets broad access when resuming from a different configuration. In the opposite direction, resuming with tighter permissions creates confusing "permission denied" errors for tools the AI previously used successfully.
+**Consequences:**
+- Supply chain attack via popular community plugin
+- Plugins that silently alias-hijack `sudo`, `ssh`, `git push`
+- Reputational catastrophe when "nesh plugin stole my AWS keys" hits Hacker News
 
 **Prevention:**
-- Store the permission mode alongside the session ID in `ShellState`
-- When resuming a session, restore the same permission mode unless the user explicitly changes it
-- Warn the user if the permission mode differs from the original session: "This session was created with restricted permissions. Current mode allows file edits. Continue? [y/N]"
-- Never store `bypassPermissions` sessions -- or if you do, mark them clearly so they aren't accidentally resumed in production contexts
-- Use `disallowed_tools` as a hard deny list that persists regardless of permission mode (the SDK enforces this even in `bypassPermissions`)
+1. **Tiered trust model.** Bundled plugins = trusted, in-process. Curated registry = human-reviewed. Arbitrary git repos = explicit warnings + restricted defaults.
+2. **Permission declarations in manifest.** `{ "permissions": ["fs:read", "net", "env:PATH"] }`. Shown at install time like mobile app permissions.
+3. **Do NOT attempt in-process sandboxing.** For untrusted plugins, use process-level isolation: child process with scrubbed env vars and restricted filesystem access.
+4. **Start bundled-only.** Phase 1 ships only bundled plugins. Git-installable plugins come in a later phase after the security model is proven.
+5. **Automated review tooling** for the curated registry: static analysis for `child_process`, `fs.write` outside plugin dir, undeclared `net` or `process.env` access.
 
-**Detection:** Create a session with `allowedTools: ["Read"]`, resume it with `permissionMode: "bypassPermissions"`. If the AI can now write files, permission escalation exists.
+**Detection:** If the loader uses bare `import(userPath)` on user-installed code without isolation, this pitfall is active.
 
-**Phase:** Must be addressed when implementing session management + permission control together.
-
-**Confidence:** HIGH -- the SDK docs explicitly warn about `allowed_tools` not constraining `bypassPermissions`, and subagent permission inheritance.
+**Risk:** CRITICAL
+**Phase:** Security model designed in Phase 1. Git-installable plugins deferred to Phase 3+.
 
 ---
 
-### Pitfall 5: PTY Process Zombies and Resource Leaks
+### Pitfall 5: Plugin Error Crashes the Entire Shell
 
-**What goes wrong:** Interactive programs launched via node-pty don't get properly cleaned up. The user starts vim, presses Ctrl+C or the shell crashes, and the PTY process keeps running. Over time, zombie PTY processes accumulate, consuming file descriptors and system resources. On macOS, each node-pty instance consumes a pseudo-terminal pair from a limited pool (typically 256).
+**What goes wrong:** A plugin throws an unhandled exception in `init()`, or a completion provider throws during Tab, or a hook throws during preCommand. The exception propagates up through the REPL loop and crashes the shell. If the crashing plugin is in the user's config, every new shell session crashes -- they cannot use the shell at all.
 
-**Why it happens:** node-pty's official docs warn that "Pseudo-terminals and shell processes consume system resources, so you should make sure to close the pty process when it's no longer needed by calling the kill method." But crash paths, SIGINT during PTY operation, and unhandled promise rejections can all skip the cleanup code. node-pty is also not thread-safe -- if the shell uses worker threads for any purpose, PTY operations can corrupt state.
+**Why it happens:** Plugin code is untrusted (even bundled plugins can have bugs triggered by unusual system configs). Without error boundaries, any throw in plugin code reaches `shell.ts`'s try/catch or becomes an unhandled rejection. OMZ itself is fragile here -- a bad `.plugin.zsh` prevents shell startup entirely.
 
-**Consequences:** System resource exhaustion after extended use. "No PTY available" errors that require terminal restart. Zombie processes consuming CPU/memory. On shared systems, this can affect other users.
+**Consequences:** Users lose their shell session. Repeated crashes on startup lock users out until they manually edit `~/.nesh/config.json`.
 
 **Prevention:**
-- Maintain a registry of active PTY processes in `ShellState`
-- Register cleanup on ALL exit paths: `process.on('exit')`, `SIGINT`, `SIGTERM`, `uncaughtException`, `unhandledRejection`
-- Use try/finally around every PTY lifecycle: `const pty = spawn(...); try { await waitForExit(pty); } finally { pty.kill(); }`
-- Set a timeout for PTY processes -- if a PTY child hasn't produced output in N minutes, offer to kill it
-- On shell startup, check for orphaned PTY processes from previous crashed sessions
-- Never use node-pty across worker threads
+1. Every plugin lifecycle call (`init`, `destroy`) runs inside try-catch. Failures log a warning and disable the plugin, they never crash the shell.
+2. Every hook dispatch runs inside try-catch that logs and skips the failing hook.
+3. Every completion provider has a try-catch AND a timeout (1 second max).
+4. If a plugin fails 3 times in a row across sessions, auto-disable with a warning.
+5. `nesh plugin doctor` command shows failed plugins and reasons.
+6. Safe mode: `nesh --safe` starts with zero plugins for recovery.
 
-**Detection:** Start vim via the shell, then force-kill the shell process. Check `ps aux | grep pty` for orphaned processes. Repeat 10 times. If PTY count grows, cleanup is broken.
+**Detection:** Install a plugin with `init() { throw new Error('boom') }`. Shell must start normally with a warning.
 
-**Phase:** PTY support implementation. Must be designed into the PTY lifecycle from the start.
+**Risk:** CRITICAL
+**Phase:** Plugin loader Phase 1. Error boundaries must be baked into the loader from day one.
 
-**Confidence:** HIGH -- node-pty docs explicitly warn about resource cleanup. macOS PTY limits are well-documented.
+---
+
+## High Pitfalls
+
+### Pitfall 6: Plugin State Mutation Breaks Immutable ShellState Pattern
+
+**What goes wrong:** Nesh uses immutable `ShellState` (see `src/types.ts`: every field is `readonly`, updates use `state = { ...state, field: value }`). Plugins will store their own state (git branch cache, env snapshots, completion caches). If plugins mutate shared objects or maintain mutable singletons, it breaks the architectural invariant.
+
+**Why it happens:** Zsh plugins freely mutate global variables -- this is the programming model being ported FROM. Plugin authors will naturally write `this.cache = newValue`. The immutable pattern requires deliberate API enforcement.
+
+**Consequences:**
+- Race conditions between plugins during async operations
+- Plugins that work alone break when combined
+- Gradual erosion of the immutable pattern
+
+**Prevention:**
+1. **Namespaced state via PluginContext.** `context.getState<T>()` and `context.setState<T>(updater: (prev: T) => T)`. Plugins never see `ShellState`.
+2. **TypeScript enforcement.** `Readonly<T>` state types, `readonly` API parameters.
+3. **`Object.freeze()` in dev mode** to catch mutations with thrown errors.
+4. **Lint rule** banning direct `process.env` mutation and `ShellState` imports in plugin code.
+
+**Detection:** Grep for `ShellState` imports in plugin code. Any plugin importing it violates the boundary.
+
+**Risk:** HIGH
+**Phase:** Plugin API design (Phase 1). Must be locked before any plugins are written.
+
+---
+
+### Pitfall 7: Completion System Cannot Match Zsh's Context-Awareness
+
+**What goes wrong:** Zsh completions are deeply context-aware: `git ch<TAB>` completes to subcommands, `git checkout <TAB>` completes to branches. A naive flat word list feels broken compared to real zsh. [Existing Node.js completion libraries](https://github.com/mklabs/tabtab) only support command-level completions, not argument-level.
+
+**Why it happens:** Zsh has decades of hand-written completion definitions encoding deep command grammar knowledge. Building this from scratch for even 50 commands is months of work.
+
+**Consequences:** Completions feel "dumb" compared to zsh. This becomes the #1 reason users don't switch. Without completions, 120+ plugins lose their primary value.
+
+**Prevention:**
+1. **Leverage Fig's open-sourced completion specs** (archived March 2025). 500+ command grammars already written in TypeScript.
+2. **Shell-out fallback.** If Nesh cannot complete natively, ask `bash`/`zsh` (if available) via `compgen`. Provides 80% coverage on day one.
+3. **Prioritize top 20 commands.** git, docker, npm, kubectl, ssh, cd, aws, gcloud, terraform, cargo. Hand-craft these; use fallback for rest.
+4. **Pluggable completions.** Each plugin registers its own completion provider. The engine dispatches based on command prefix (longer prefixes win over shorter).
+5. **Async completion with timeout.** Providers that spawn subprocesses (`docker ps` for container names) get a 1-second timeout. Cache results for 5 seconds. Show "completing..." indicator. Ctrl+C cancels pending provider.
+
+**Detection:** `git checkout <TAB>` should show branch names, not file names. If it shows file names, context-awareness is missing.
+
+**Risk:** HIGH
+**Phase:** Completion engine architecture in Phase 1. Individual command completions added incrementally.
+
+---
+
+### Pitfall 8: Keypress Event Handler Latency Causes Typing Lag
+
+**What goes wrong:** The syntax highlighter and auto-suggestion engine process every keypress. If processing takes >16ms, users perceive lag -- characters appear late, cursor stutters.
+
+**Why it happens:** On each keypress: (1) readline processes key, (2) highlighter tokenizes and colors the line, (3) suggester searches history, (4) both write ANSI to stdout. Long lines, large history, or slow terminals exceed the budget.
+
+**Consequences:** Users disable highlighting and suggestions because typing feels slow. The most-requested features ship but are unusable.
+
+**Prevention:**
+1. **Debounce highlighting:** Only re-highlight after 10ms of no keypress (pause in typing). Fast continuous typing skips re-rendering.
+2. **Cache suggestion results:** If current prefix matches cached prefix, reuse result.
+3. **History search:** Reverse linear scan with early exit on first match. Do not sort/index full history per keypress.
+4. **Diff-based rendering:** Compare new highlighted output against previous render. Only write changed portions to stdout.
+5. **Frame budget profiling:** `process.hrtime.bigint()` before/after keypress handler. If >10ms, skip current render cycle.
+6. **Both features independently disablable** in config.
+
+**Detection:** Type quickly (>5 chars/sec) with both features enabled. If visible delay, the handler is too slow.
+
+**Risk:** HIGH
+**Phase:** Auto-suggestions/highlighting phase. Both require performance optimization from the start.
+
+---
+
+### Pitfall 9: Alias Expansion Infinite Loop
+
+**What goes wrong:** Plugin A defines `g` -> `git`. Plugin B defines `git` -> `git --verbose`. Expansion enters infinite loop: `g` -> `git` -> `git --verbose` -> `git --verbose --verbose` -> ...
+
+**Why it happens:** Naive expansion re-checks the expanded result against the alias registry. If aliases chain or cycle, expansion never terminates. The existing `classify.ts` classifies input by first word -- if alias expansion feeds back into classification, it loops.
+
+**Consequences:** Shell hangs on any aliased command. User must force-kill.
+
+**Prevention:**
+1. **Expand aliases exactly once.** Look up first word, replace, do NOT re-check expanded first word.
+2. **Depth limit as safety net** (max 10 levels, bail with error).
+3. **Test with:** circular aliases (`a` -> `b`, `b` -> `a`), self-referencing (`git` -> `git --verbose`), chains (`g` -> `git` -> `git status`).
+
+**Detection:** Define `alias x='x --flag'` and type `x`. If shell hangs, expansion is recursive.
+
+**Risk:** HIGH
+**Phase:** Alias system (Phase 1). Must be correct before any alias-bearing plugins are loaded.
+
+---
+
+### Pitfall 10: Cross-Platform Path and Shell Assumptions
+
+**What goes wrong:** OMZ plugins assume Unix paths (`/usr/local/bin`), bash/zsh commands (`compgen`, `whence`, `type -p`), and GNU tool flags. macOS ships BSD `grep`/`sed` (different flags than GNU). Homebrew is at `/opt/homebrew` on Apple Silicon vs `/usr/local` on Intel.
+
+**Consequences:** Plugin works on developer's Mac, fails on Linux CI (or vice versa). Hardcoded paths fail on non-standard installs.
+
+**Prevention:**
+1. **Pure TypeScript wherever possible.** Don't `spawn('grep')` -- use `string.match()`. Don't `spawn('which')` -- walk PATH with `node:fs`.
+2. **Platform utility layer.** `platform.which(cmd)`, `platform.homeDir`, `platform.isAppleSilicon()`. Plugins use utilities, not raw `process.platform`.
+3. **CI matrix testing** on macOS and Linux from Phase 1.
+4. **Platform tags in manifest.** `{ "platforms": ["darwin"] }` for macOS-only plugins.
+
+**Detection:** Grep plugin code for hardcoded paths, `spawn('grep')`, `spawn('sed')`.
+
+**Risk:** HIGH
+**Phase:** Utility layer in Phase 1. Platform testing ongoing.
+
+---
+
+### Pitfall 11: Plugin Dependency Ordering and Circular Dependencies
+
+**What goes wrong:** Plugin A depends on Plugin B for shared helpers. Plugin B depends on C. C optionally enhances A. The loader must resolve this DAG correctly or plugins fail with "function not defined." OMZ has no dependency system -- [plugins break silently when listed in wrong order](https://github.com/ohmyzsh/ohmyzsh/issues/4932).
+
+**Prevention:**
+1. **Explicit dependencies in manifest.** `{ "dependencies": ["git"], "optionalDependencies": ["fzf"] }`. Loader topologically sorts.
+2. **Cycle detection at load time.** Clear error naming participants. Never hang or loop.
+3. **Auto-enable for bundled deps.** If plugin A requires `git` (bundled), auto-enable it with a notice. For third-party deps, refuse to load with an error.
+4. **Integration tests for default profiles** verify zero conflicts and missing deps.
+
+**Detection:** Enable two plugins defining the same alias. If last-loaded wins silently (no warning), collision detection is missing.
+
+**Risk:** HIGH
+**Phase:** Plugin loader Phase 1. Dependency resolution must be part of the initial loader.
+
+---
 
 ## Moderate Pitfalls
 
-### Pitfall 6: Context Window Explosion with Session History
+### Pitfall 12: Alias Conflicts Between Plugins and User Config
 
-**What goes wrong:** Session continuity means every prior `a` command's full conversation (prompts, tool calls, file contents, results) stays in context. Users who rely on sessions heavily hit context limits 5-10x faster than single-query users. The "lost-in-the-middle" effect (LLMs weigh beginning and end of context more heavily than the middle) means important earlier session context gets functionally ignored even before the window fills.
-
-**Why it happens:** v1 treats each `a` command independently (no session). v2 adds session continuity, which accumulates context across commands. A user running 10 AI commands in a session might have 50K+ tokens of history, with file reads and tool outputs being the biggest consumers. Research shows effective context often falls far below advertised limits -- up to 99% degradation on complex tasks.
+**What goes wrong:** Plugin defines `g` for `git`. User has `g` for `goto`. Plugin silently overwrites. Or two plugins define `dc` (docker-compose vs desk calculator).
 
 **Prevention:**
-- Implement explicit session boundaries: `/fresh` starts a new session, `a --session` uses the current session, `a` (bare) defaults to session mode but with a configurable default
-- Use the SDK's compaction feature (`/compact` equivalent) -- trigger it automatically when token usage exceeds a threshold (e.g., 60% of window)
-- Show a "context usage" indicator: `[42K/200K tokens]` so users understand why responses may degrade
-- Truncate large tool outputs before they enter the session history (first/last N lines of command output)
-- Consider a "sliding window" approach: summarize older session turns rather than keeping full history
-- The SDK supports `persistSession: false` for stateless queries -- offer this as a flag for one-off questions within a session
+1. User aliases always win (loaded last).
+2. Collision detection at load time with warning.
+3. Per-plugin alias disable: `{ "docker": { "disabledAliases": ["dc"] } }`.
+4. `nesh aliases` command listing all aliases with source plugin.
 
-**Detection:** Start a session, run 20+ AI commands including file reads, measure response quality and latency on command 1 vs command 20. If quality drops or latency doubles, context management is needed.
-
-**Phase:** Session management implementation. Must plan for compaction from the start, not bolt it on later.
-
-**Confidence:** HIGH -- research from Chroma (context rot) and production LLM tools confirms this universally.
+**Risk:** MEDIUM
+**Phase:** Phase 1 (alias registration).
 
 ---
 
-### Pitfall 7: Permission UX That Blocks Flow
+### Pitfall 13: Prompt Segment Integration Conflicts
 
-**What goes wrong:** Every potentially dangerous operation prompts the user for permission: "Allow file edit? [y/N]", "Allow bash command? [y/N]". Users who wanted AI-assisted productivity now spend more time approving operations than typing commands. They either switch to `bypassPermissions` (unsafe) or stop using AI commands (defeats the purpose).
-
-**Why it happens:** The default permission mode in the SDK triggers `canUseTool` for every unmatched tool request. If ClaudeShell implements permission control without thoughtful defaults, every `Bash`, `Write`, and `Edit` tool use prompts the user. In a shell context where the user *already typed the command*, re-asking for permission feels absurdly redundant.
-
-**Consequences:** Users disable permissions entirely (`bypassPermissions`) to avoid friction, which is the worst security outcome. Or they abandon AI commands because the UX is too slow. Neither achieves the goal of "safe but productive."
+**What goes wrong:** Nesh has a powerline prompt system (5 themes in `src/templates.ts`). Plugins that modify the prompt must integrate with templates. If plugins write raw ANSI to stdout, it conflicts with the existing system.
 
 **Prevention:**
-- Default to `acceptEdits` mode for shell contexts -- the user invoked the AI, they expect it to do things
-- Use `allowedTools` to pre-approve the standard tool set: `["Read", "Write", "Edit", "Bash", "Glob", "Grep"]`
-- Only prompt for truly dangerous operations: destructive commands (`rm -rf`), operations outside the current project directory, network access
-- Implement a "trust radius" -- auto-approve operations within the current project tree, prompt for anything outside it
-- Use `disallowed_tools` as the hard safety net rather than prompting for everything
-- Show what the AI is doing (tool start/end indicators already exist) but don't block on approval unless genuinely risky
-- Provide a config option: `permission_level: "standard" | "cautious" | "yolo"` with sensible descriptions
+1. Prompt composed of segments provided by plugins. Renderer assembles; plugins never write prompt ANSI directly.
+2. Plugins register: `context.registerPromptSegment('git-status', { position: 'left', priority: 50, render: () => ... })`.
+3. Prompt segment plugins are async-capable with 100ms timeout. Cache values between renders.
+4. For git: use `git rev-parse --abbrev-ref HEAD` (fast) not `git status` (slow in monorepos). The existing `getGitBranch()` in `prompt.ts` already follows this pattern.
 
-**Detection:** Run `a add a comment to this file` and count how many permission prompts appear. If > 1, the UX is too aggressive.
-
-**Phase:** Permission control implementation. The default permission stance is a critical UX/security tradeoff.
-
-**Confidence:** MEDIUM -- based on Claude Code user community feedback about permission fatigue, and the SDK's explicit `dontAsk` mode existing to address this pattern.
+**Risk:** MEDIUM
+**Phase:** Phase 1 (prompt segment API before any prompt-modifying plugins).
 
 ---
 
-### Pitfall 8: Pipe Output Includes ANSI/Markdown Garbage
+### Pitfall 14: Dynamic import() Fails for User-Installed Plugins
 
-**What goes wrong:** When ClaudeShell output is piped (`a explain git | less` or `a summarize > output.txt`), the output includes ANSI color codes, markdown rendering artifacts, spinner characters, and tool-use indicators. The piped output is unreadable in a text file and breaks downstream tools that expect clean text.
-
-**Why it happens:** The existing renderer uses `marked-terminal` for markdown rendering and `picocolors` for colors. These produce ANSI escape sequences. The "Thinking..." spinner writes and erases to stderr. When stdout is piped, `process.stdout.isTTY` becomes false, but if the renderer doesn't check this, all formatting goes to the pipe.
-
-**Consequences:** One of v2's headline features (pipe-friendly output) is broken. Users can't integrate ClaudeShell with Unix pipelines, which is the primary value proposition of being a shell rather than a separate UI.
+**What goes wrong:** Plugin cloned to `~/.nesh/plugins/my-plugin/`. `import(pluginPath)` fails because: (a) path not a valid `file://` URL, (b) plugin is TypeScript not compiled JS, (c) plugin uses `require()` not ESM, (d) plugin has unresolved npm dependencies.
 
 **Prevention:**
-- Check `process.stdout.isTTY` at renderer creation (this already exists in `createRenderer` -- verify it actually disables all formatting)
-- When `isTTY` is false: disable all ANSI codes, disable markdown rendering (output raw text), suppress spinners and progress indicators, suppress tool-use indicators
-- Write spinners and status messages to stderr only (already partially done with "Thinking..."), so they don't contaminate piped stdout
-- Support `--format json` flag for programmatic consumers
-- Support `--format plain` flag to force plain text even in a TTY
-- Test with: `a hello | cat`, `a hello > /tmp/out.txt && cat /tmp/out.txt`, `a hello | grep -c '\x1b'` (should be 0)
+1. Convert paths to `file://` URLs via `pathToFileURL()` from `node:url`.
+2. Require user plugins to be pre-compiled JS with ESM exports. Provide `nesh plugin build`.
+3. Validate exports after import (check for required fields).
+4. For v3.0, do NOT support raw TypeScript plugins (would require tsx at runtime).
 
-**Detection:** Run `a hello | cat -v`. If you see `^[[` escape sequences, ANSI codes are leaking.
-
-**Phase:** Pipe support implementation. Must verify the existing `isTTY` check is comprehensive.
-
-**Confidence:** HIGH -- the existing codebase already checks `isTTY` but only at renderer creation; it may not cover all output paths (stderr, spinner, tool indicators).
+**Risk:** MEDIUM
+**Phase:** Plugin management CLI (Phase 2).
 
 ---
 
-### Pitfall 9: PTY Breaks Ctrl+C Contract
+### Pitfall 15: History-Based Suggestions Expose Sensitive Commands
 
-**What goes wrong:** The existing shell has a carefully designed SIGINT contract: Ctrl+C during AI streaming calls `abortController.abort()`, Ctrl+C at idle prompt clears the line. Adding PTY support introduces a third state where Ctrl+C should flow to the PTY child process. Getting this wrong means Ctrl+C kills the shell while vim is running, or Ctrl+C doesn't cancel AI queries when a PTY was previously active.
-
-**Why it happens:** SIGINT handling must now be a three-way state machine instead of two-way. The transition between states is tricky: when does "PTY active" end? What if the PTY program spawns a child? What if the user backgrounds a PTY process? The existing `rl.on('SIGINT')` handler must be augmented or replaced depending on the current state.
-
-**Consequences:** The most critical v1 pitfall (broken Ctrl+C) re-emerges. Users lose trust when basic keyboard shortcuts behave inconsistently.
+**What goes wrong:** Auto-suggestions display commands containing secrets: `export API_KEY=sk-...`, `mysql -p password123`. Ghost text visible to anyone looking at the screen.
 
 **Prevention:**
-- Extend the state machine: `IDLE` -> Ctrl+C clears line, `AI_STREAMING` -> Ctrl+C aborts AI, `PTY_ACTIVE` -> Ctrl+C passes to PTY child
-- During PTY mode: remove or disable the readline SIGINT handler, let the PTY's signal handling take over
-- On PTY exit: restore the readline SIGINT handler immediately
-- Test each transition: idle->AI->cancel->idle, idle->PTY->ctrl+c->PTY handles it->exit->idle, AI streaming->ctrl+c->cancel->immediately start PTY->ctrl+c in PTY
-- Edge case: what happens if the user spawns a background process from the PTY and then exits? The background process may still be attached to the PTY's signals
+1. Filter history entries matching secret patterns (`API_KEY=`, `TOKEN=`, `PASSWORD=`, `Bearer `).
+2. Skip commands starting with space (zsh convention for non-history commands).
+3. Configurable additional filter patterns.
 
-**Detection:** Start vim, press Ctrl+C (should NOT kill the shell). Exit vim, start an AI query, press Ctrl+C (should cancel AI). Verify prompt returns cleanly.
-
-**Phase:** PTY support implementation. Must extend the existing SIGINT architecture, not replace it.
-
-**Confidence:** HIGH -- this is a direct extension of v1 Pitfall #3 (broken Ctrl+C) which was identified as critical.
+**Risk:** MEDIUM
+**Phase:** Auto-suggestions phase.
 
 ---
 
-### Pitfall 10: Session Serialization on Crash
+### Pitfall 16: Plugin Installation UX Complexity Kills Adoption
 
-**What goes wrong:** The shell crashes (OOM, unhandled exception, SIGKILL) mid-session. The in-memory session state (active session ID, permission mode, session metadata) is lost. On restart, the shell either starts a fresh session (losing context) or tries to resume the wrong session.
-
-**Why it happens:** The SDK persists session *conversations* to disk automatically (as .jsonl files). But ClaudeShell's *shell-level* session metadata (which session is "active", what permission mode is set, user preferences for the session) lives only in `ShellState` in memory. There's no write-ahead mechanism.
-
-**Consequences:** Users who rely on sessions lose their active context on any crash. Since shells can crash for many reasons (out of memory during large AI operations, network interruptions, macOS sleep/wake issues), this will happen regularly.
+**What goes wrong:** [Nushell's plugin system](https://qqq.ninja/blog/post/nushell-install-plugins/) required multiple steps (download, register, activate, restart). Users reported the complexity "ruined the excitement." If Nesh requires more than one command, adoption suffers.
 
 **Prevention:**
-- Write session metadata to a file (`~/.claudeshell/active-session.json`) on every session change
-- Include: session ID, permission mode, creation timestamp, last activity timestamp
-- On startup, check for an active session file and offer to resume: "Previous session found (2 hours ago). Resume? [Y/n]"
-- On clean exit, clear the active session file
-- On crash recovery, detect the stale file (no clean exit) and surface it prominently
-- Keep the metadata file small and write it atomically (write to temp, rename)
+1. One command: `nesh plugin install <name>`. Downloads, registers, enables.
+2. No restart required -- plugin activates in current session via hot-reload.
+3. `nesh plugin search <query>` for discovery.
+4. Bundled plugins require zero installation (profile selection or config toggle).
+5. `nesh --safe` for recovery if a plugin breaks startup.
 
-**Detection:** Start a session with several AI commands, then `kill -9` the shell process. Restart the shell. If it doesn't offer to resume, crash recovery is broken.
+**Risk:** MEDIUM
+**Phase:** Phase 2 (community plugin installation). Bundled plugins in Phase 1 sidestep this.
 
-**Phase:** Session management implementation. Simple to add early, very annoying to retrofit.
+---
 
-**Confidence:** MEDIUM -- standard crash recovery pattern, but easy to overlook in initial implementation.
+### Pitfall 17: Hot-Reload Causing State Corruption
+
+**What goes wrong:** During development, a plugin is reloaded. Old registrations (aliases, completions, hooks) remain alongside new ones, causing duplicates or ghost behavior.
+
+**Prevention:**
+1. Plugin unload is symmetric with load: `deactivate()` removes everything `activate()` registered.
+2. Framework tracks all registrations per-plugin and can bulk-remove.
+3. Hot-reload = unload old + load new, never additive.
+
+**Risk:** MEDIUM
+**Phase:** Phase 1 (lifecycle design).
+
+---
 
 ## Minor Pitfalls
 
-### Pitfall 11: node-pty Native Module Build Failures
+### Pitfall 18: npm Package Size Explosion
 
-**What goes wrong:** node-pty is a native C++ addon that requires compilation. Users installing ClaudeShell via `npm install -g claudeshell` hit build failures because they lack Xcode Command Line Tools (macOS) or build-essential (Linux). The error messages are cryptic C++ compiler output that most JS developers can't diagnose.
+**What goes wrong:** 300 plugin files add significant size. Users installing `npm install -g nesh` download more than needed.
 
-**Prevention:**
-- Document the native dependency requirement in README and package.json `engines` field
-- Consider using `@lydell/node-pty` or `node-pty-prebuilt-multiarch` which ship prebuilt binaries for common platforms
-- Make PTY support optional (graceful fallback to `spawn` with `stdio: 'inherit'` for interactive programs)
-- Add a postinstall check that verifies node-pty loaded successfully and prints a helpful message if not
-- Test the install path on a clean macOS and Linux VM
+**Prevention:** Alias-only plugins are tiny (~50KB for 150 plugins). Completion specs are larger -- load lazily or ship as optional `@nesh/plugins` package. Set 2MB size budget enforced in CI.
 
-**Phase:** PTY support packaging. Address before any public release.
-
-**Confidence:** MEDIUM -- node-pty GitHub issues are dominated by build failures.
+**Risk:** LOW
+**Phase:** Phase 2+ (after plugin count grows).
 
 ---
 
-### Pitfall 12: Session History File Growth
+### Pitfall 19: Environment Variable Leakage Between Commands
 
-**What goes wrong:** Long-running sessions with many AI interactions produce large `.jsonl` session files (tens of MB). Over weeks of use, `~/.claude/projects/` grows to gigabytes. The SDK's `listSessions()` becomes slow, and session resume takes seconds to parse large files.
+**What goes wrong:** Plugin sets `process.env.FOO = 'bar'` and it persists globally. Correct for `export` but wrong for per-command env vars.
 
-**Prevention:**
-- Implement session rotation: archive sessions older than N days
-- Set a maximum session file size and auto-compact when exceeded
-- Provide a `claudeshell sessions clean` command for manual cleanup
-- Show disk usage in `claudeshell sessions list`
+**Prevention:** Plugin API provides `context.setEnv()` via immutable state. Lint rule flags direct `process.env` mutation.
 
-**Phase:** Session management polish. Not critical for initial implementation but important for long-term use.
-
-**Confidence:** LOW -- depends on usage patterns; power users will hit this sooner.
+**Risk:** LOW
+**Phase:** Phase 1 (plugin API).
 
 ---
 
-### Pitfall 13: Model Selection Interacts with Session Context
+### Pitfall 20: Test Coverage Gap for Plugin Combinations
 
-**What goes wrong:** A user starts a session with Opus (200K context, expensive), then switches to Haiku mid-session for a quick question. The session history exceeds Haiku's context window, causing degraded responses or errors. Conversely, switching from Haiku to Opus mid-session works fine but the user doesn't realize the cost implications of the accumulated history.
+**What goes wrong:** Plugins pass isolated tests but conflict when combined in profiles.
 
-**Prevention:**
-- When switching models mid-session, check if session history exceeds the new model's effective context
-- Warn if switching to a smaller model with a large session: "Session has 85K tokens. Haiku works best under 48K. Start fresh? [y/N]"
-- Show token count and estimated cost with the model name in the prompt
-- Consider starting a new session by default when switching models
+**Prevention:** Integration tests for each default profile. Alias collision detection makes conflicts loud. Manifest validation catches dependency issues statically.
 
-**Phase:** Model selection + session management interaction.
+**Risk:** LOW
+**Phase:** Ongoing from Phase 1.
 
-**Confidence:** MEDIUM -- standard context window management challenge.
+---
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Session Management | Silent resume failure (#1), crash recovery (#10) | Always use explicit session IDs; persist metadata to disk |
-| Session + Permissions | Permission escalation (#4) | Store and restore permission mode with session |
-| Session + Context | Context explosion (#6), model switching (#13) | Auto-compaction; token usage display; model-aware warnings |
-| Pipe Support | Pipe destroys REPL (#3), ANSI in output (#8) | Detect isTTY at startup; separate interactive vs non-interactive modes |
-| PTY Support | readline/PTY stdin conflict (#2), Ctrl+C contract (#9), zombies (#5) | State machine for stdin ownership; cleanup registry; test all SIGINT transitions |
-| PTY Packaging | Build failures (#11) | Prebuilt binaries or optional graceful degradation |
-| Permission Control | UX blocks flow (#7), session escalation (#4) | Sensible defaults (acceptEdits); trust radius concept |
-| Session Storage | File growth (#12) | Rotation; cleanup commands; size limits |
+| Phase Topic | Likely Pitfall | Mitigation | Severity |
+|---|---|---|---|
+| Plugin loader architecture | Eager loading kills startup (P2), crashes shell (P5) | Lazy-load by default; error boundaries on all lifecycle calls | CRITICAL |
+| Plugin API surface | Zsh primitives have no equivalent (P3) | Audit all 300 plugins first; define API before porting | CRITICAL |
+| Auto-suggestions engine | Readline cannot do ghost text (P1), typing lag (P8) | Custom input engine (later phase); debounce + cache | CRITICAL |
+| Syntax highlighting | ANSI in line buffer corrupts cursor (P1), lag (P8) | Output-only rendering; frame budget; debounce | CRITICAL |
+| Git-installable plugins | Untrusted code execution (P4) | Defer to Phase 3+; permission model first | CRITICAL |
+| Alias system | Infinite loop (P9), conflicts (P12) | Expand once only; collision detection | HIGH |
+| Completion engine | Flat completions feel broken (P7), blocks event loop | Context-aware engine; Fig specs; async + timeout | HIGH |
+| Plugin state management | Mutation breaks architecture (P6) | Namespaced state API; TypeScript readonly | HIGH |
+| Cross-platform porting | macOS/Linux divergence (P10) | Pure TS; platform utility layer; CI matrix | HIGH |
+| Plugin dependencies | Silent ordering failures (P11) | Topological sort; cycle detection; auto-enable | HIGH |
+| Prompt integration | Conflicts with templates (P13) | Segment-based composition API | MEDIUM |
+| Plugin management CLI | import() failures (P14), UX complexity (P16) | pathToFileURL; one-command install; no restart | MEDIUM |
+| Sensitive history | Suggestions expose secrets (P15) | Filter patterns for common secrets | MEDIUM |
+
+---
+
+## Lessons from Other Projects
+
+| Project | What Failed | Lesson for Nesh |
+|---|---|---|
+| **oh-my-zsh** | [Startup time with many plugins](https://github.com/ohmyzsh/ohmyzsh/issues/5327) -- 1-5s startup, primary fix is disabling plugins | Lazy loading is the architecture, not an optimization |
+| **Zinit** | Exists solely because OMZ startup was too slow | Turbo mode (deferred loading) is the proven pattern |
+| **lazy.nvim** | [Solved 300+ plugin loading](https://deepwiki.com/folke/lazy.nvim/4.2-plugin-loading-and-initialization) with on-demand init | Separate registration from initialization. Trigger on command/event, not startup |
+| **Fig** | [Archived March 2025](https://github.com/withfig/fig) -- tried to own completions via terminal emulator injection | Stay at shell level. Do not couple to terminal emulator internals |
+| **vm2** | [Abandoned: unfixable sandbox escapes](https://github.com/patriksimek/vm2). [New escape Jan 2026](https://thehackernews.com/2026/01/critical-vm2-nodejs-flaw-allows-sandbox.html) | In-process JS sandboxing is a dead end. Use process-level isolation |
+| **Nushell plugins** | [Multi-step install killed adoption](https://qqq.ninja/blog/post/nushell-install-plugins/) | One command, zero config, no restart |
+| **node-color-readline** | [Abandoned 9 years ago](https://github.com/aantthony/node-color-readline) | Bolting color onto readline is a dead end |
+| **Fish shell** | [POSIX incompatibility](https://batsov.com/articles/2025/05/20/switching-from-zsh-to-fish/) breaks aliases, env syntax | Match user-facing behavior, not internal syntax |
+
+---
 
 ## Sources
 
-- [Claude Agent SDK: Session Management](https://platform.claude.com/docs/en/agent-sdk/sessions) -- HIGH confidence (official docs, verified via WebFetch)
-- [Claude Agent SDK: Configure Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) -- HIGH confidence (official docs, verified via WebFetch)
-- [Claude Code: Pipe stdin crash (#1072)](https://github.com/anthropics/claude-code/issues/1072) -- HIGH confidence
-- [Claude Code: Raw mode pipe crash (#5925)](https://github.com/anthropics/claude-code/issues/5925) -- HIGH confidence
-- [Claude Code: Programmatic/Headless Usage](https://code.claude.com/docs/en/headless) -- HIGH confidence
-- [Node.js: Lost keystrokes with multiple stdin readers (#5574)](https://github.com/nodejs/node/issues/5574) -- HIGH confidence
-- [Node.js: readline pipe input echo (#37595)](https://github.com/nodejs/node/issues/37595) -- HIGH confidence
-- [Node.js: TTY Documentation](https://nodejs.org/api/tty.html) -- HIGH confidence
-- [node-pty: GitHub repository and docs](https://github.com/microsoft/node-pty) -- HIGH confidence
-- [Chroma Research: Context Rot](https://research.trychroma.com/context-rot) -- HIGH confidence
-- [LLM Chat History Summarization (mem0.ai)](https://mem0.ai/blog/llm-chat-history-summarization-guide-2025) -- MEDIUM confidence
-- [Context Window Management Strategies (Agenta)](https://agenta.ai/blog/top-6-techniques-to-manage-context-length-in-llms) -- MEDIUM confidence
-- [Trail of Bits: Prompt Injection to RCE](https://blog.trailofbits.com/2025/10/22/prompt-injection-to-rce-in-ai-agents/) -- HIGH confidence
-- [AI Agent Permission Models: Least Privilege (AgentNode)](https://agentnode.net/blog/ai-agent-permission-models-least-privilege) -- MEDIUM confidence
-- [Securing AI Coding Tools (Brian Gershon)](https://www.briangershon.com/blog/securing-ai-coding-tools/) -- MEDIUM confidence
+- [Node.js readline ANSI cursor bug](https://github.com/nodejs/node-v0.x-archive/issues/3860) -- HIGH confidence
+- [Node.js readline cursor/line API limitations](https://github.com/nodejs/node/issues/30347) -- HIGH confidence
+- [oh-my-zsh slow startup issue #5327](https://github.com/ohmyzsh/ohmyzsh/issues/5327) -- HIGH confidence
+- [oh-my-zsh slow startup issue #8536](https://github.com/ohmyzsh/ohmyzsh/issues/8536) -- HIGH confidence
+- [Speeding up zsh with lazy loading](https://blog.mattclemente.com/2020/06/26/oh-my-zsh-slow-to-load/) -- HIGH confidence
+- [Lazy-loading nvm for faster zsh](https://armno.in.th/blog/zsh-startup-time/) -- HIGH confidence
+- [lazy.nvim plugin loading architecture](https://deepwiki.com/folke/lazy.nvim/4.2-plugin-loading-and-initialization) -- HIGH confidence
+- [Lazy load completions for faster shell](https://willhbr.net/2025/01/06/lazy-load-command-completions-for-a-faster-shell-startup/) -- MEDIUM confidence
+- [Snyk: Node.js vm module insecurity](https://snyk.io/blog/security-concerns-javascript-sandbox-node-js-vm-module/) -- HIGH confidence
+- [vm2 abandoned, sandbox escapes](https://github.com/patriksimek/vm2) -- HIGH confidence
+- [vm2 critical escape January 2026](https://thehackernews.com/2026/01/critical-vm2-nodejs-flaw-allows-sandbox.html) -- HIGH confidence
+- [isolated-vm as alternative](https://riza.io/compare/isolated-vm-alternative) -- MEDIUM confidence
+- [zsh-autosuggestions architecture](https://deepwiki.com/zsh-users/zsh-autosuggestions) -- HIGH confidence
+- [node-color-readline (abandoned)](https://github.com/aantthony/node-color-readline) -- HIGH confidence
+- [tabtab: Node.js tab completion](https://github.com/mklabs/tabtab) -- MEDIUM confidence
+- [omelette: Node.js autocompletion](https://github.com/f/omelette) -- MEDIUM confidence
+- [Fig archived March 2025](https://github.com/withfig/fig) -- HIGH confidence
+- [Nushell plugin installation friction](https://qqq.ninja/blog/post/nushell-install-plugins/) -- MEDIUM confidence
+- [Zsh to Fish migration gotchas](https://batsov.com/articles/2025/05/20/switching-from-zsh-to-fish/) -- MEDIUM confidence
+- [OMZ plugin troubleshooting](https://www.w3tutorials.net/blog/how-can-i-fix-not-working-oh-my-zsh-plugins/) -- MEDIUM confidence
+- [Node.js ESM dynamic import docs](https://nodejs.org/api/esm.html#import-expressions) -- HIGH confidence
+- [Zinit turbo mode](https://github.com/zdharma-continuum/zinit) -- HIGH confidence
+- [zsh-syntax-highlighting performance](https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/docs/highlighters.md) -- MEDIUM confidence

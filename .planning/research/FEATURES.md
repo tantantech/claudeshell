@@ -1,183 +1,327 @@
-# Feature Landscape
+# Feature Landscape: Oh-My-Nesh Plugin Ecosystem
 
-**Domain:** AI-powered interactive terminal shell (v2 features)
-**Researched:** 2026-03-31
-**Focus:** Session management, pipe-friendly AI, PTY integration, permission control, project context, model selection, token/cost display, error recovery, configurable prefix, per-project config
+**Domain:** Shell plugin framework / oh-my-zsh TypeScript port
+**Researched:** 2026-04-03
+**Overall confidence:** HIGH (based on OMZ repo analysis, Zsh Plugin Standard, competing framework analysis, popularity data)
 
-## Competitive Context
+## How Oh-My-Zsh Plugins Actually Work
 
-The v1 features (REPL, `a` prefix, streaming, history, config, markdown rendering, prompt templates, error explanation) are already built. The v2 features move ClaudeShell from "AI shell wrapper" to "power-user AI development environment." Here is how the competition handles these same features:
+### Plugin File Structure
 
-| Feature | Claude Code CLI | aichat | Gemini CLI | Warp | shell-gpt |
-|---------|----------------|--------|------------|------|-----------|
-| Session persistence | Yes (JSONL files, `--continue`, `--resume`) | Yes (named sessions) | Yes (hierarchical context) | Yes (blocks model) | No |
-| Pipe/stdin support | Limited (`--print` flag) | Yes (first-class, `cat x \| aichat`) | Yes | N/A (terminal) | Yes (`sgpt --chat`) |
-| PTY for interactive cmds | Yes (built into Claude Code) | No (not a shell) | No (not a shell) | Yes (is a terminal) | No |
-| Permission control | Yes (5 modes + hooks) | No (no tool use) | Limited | No | No |
-| Project context | Yes (CLAUDE.md files) | No | Yes (GEMINI.md) | Yes (auto-detect) | No |
-| Model selection | Yes (per-session) | Yes (per-query prefix) | Limited | N/A | Yes (config) |
-| Token/cost display | Yes (after response) | No | No | N/A | No |
-| Error recovery | Partial (manual) | No | No | Yes (AI suggestions) | No |
+Every OMZ plugin lives in `~/.oh-my-zsh/plugins/<name>/` and must contain `<name>.plugin.zsh` as the entry point. The [Zsh Plugin Standard](https://wiki.zshell.dev/community/zsh_plugin_standard) defines the full anatomy:
 
-ClaudeShell's advantage: all of these in a single `a` prefix UX, with full Claude Agent SDK tool use. No one else combines pipe-friendly AI + session context + PTY + permission control in a shell wrapper.
+```
+plugin-name/
+  plugin-name.plugin.zsh   # Main entry (sourced on load)
+  _plugin-name             # Completion function (optional, added to $fpath)
+  functions/               # Autoload functions directory (optional)
+  bin/                     # Executables added to $PATH (optional)
+  README.md                # Documentation
+```
+
+**Loading mechanism:** OMZ iterates the `plugins=(...)` array in `.zshrc`, sources each `<name>.plugin.zsh`, and adds completion dirs to `$fpath`. There is no dependency resolution, no lazy loading, no lifecycle hooks beyond basic sourcing. Plugins execute top-level code on source (defining aliases, env vars, function definitions).
+
+**Lifecycle in the standard:** The Zsh Plugin Standard (not OMZ itself) defines `{plugin-name}_plugin_unload` for cleanup, `@zsh-plugin-run-on-unload` and `@zsh-plugin-run-on-update` callbacks, and a `PMSPEC` parameter for manager capability discovery. OMZ does not implement any of these -- only advanced managers like zinit do.
+
+### Plugin Categories (by implementation pattern)
+
+Analysis of the ~350 OMZ plugins reveals **5 distinct implementation categories** with very different porting complexity for Nesh:
+
+| Category | Count | What They Do | Examples | Nesh Porting Complexity |
+|----------|-------|-------------|----------|------------------------|
+| **Aliases-only** | ~120 | Define shell aliases (`alias gst='git status'`) | git, brew, docker, npm, kubectl, common-aliases | LOW - pure data mapping |
+| **Completion-only** | ~100 | Add tab-completion for CLI tools via zsh completion functions | aws, terraform, helm, docker-compose, gh | MEDIUM - need completion engine |
+| **Environment setup** | ~40 | Set env vars, modify PATH, initialize version managers | nvm, pyenv, rbenv, direnv, dotenv, virtualenv | LOW-MEDIUM - env manipulation |
+| **Hooks/Widgets** | ~30 | Bind zle widgets, precmd/preexec hooks, key bindings | autosuggestions, syntax-highlighting, sudo, history-substring-search, bgnotify | HIGH - need hook system + readline integration |
+| **Full tools** | ~50 | Define functions, commands, or full utilities | extract, z, web-search, encode64, copypath, thefuck, jsontools | MEDIUM-HIGH - reimplement logic in TS |
+
+### Nesh Architecture Integration Points
+
+Based on the existing Nesh codebase (`src/` analysis):
+
+| Nesh Module | Plugin Integration Surface |
+|-------------|---------------------------|
+| `classify.ts` | Must add `plugin-command` action type for plugin-provided builtins/commands |
+| `builtins.ts` | Plugin-provided commands register here or in a parallel command registry |
+| `passthrough.ts` | Alias expansion must happen BEFORE passthrough to `bash -c` |
+| `shell.ts` | Plugin lifecycle hooks (preexec, precmd, chpwd) attach to the REPL loop |
+| `prompt.ts` | Prompt segment plugins (git info, virtualenv, kube context) feed into prompt builder |
+| `types.ts` | `ShellState` needs plugin state extension mechanism (currently has no plugin field) |
+| `config.ts` | Plugin enable/disable, per-plugin config, profiles all extend the config schema |
+| `context.ts` | AI-enhanced plugin suggestions use project detection already built here |
+
+---
 
 ## Table Stakes
 
-Features that v2 users will consider baseline for a "session-aware AI shell."
+Features users expect from any OMZ-compatible plugin system. Missing = "why not just use OMZ?"
 
-| Feature | Why Expected | Complexity | Implementation Path |
-|---------|--------------|------------|---------------------|
-| AI session context | Claude Code and Gemini CLI both persist context. "a find tests" then "a now run them" must work. Without this, each `a` command is isolated and feels broken. | Medium | SDK `resume` option with session ID. Store session ID in ShellState. `continue: true` for auto-resume. Sessions stored as JSONL under `~/.claudeshell/sessions/`. |
-| Fresh context (`/new`) | Users need to reset when switching tasks. Claude Code has `--no-continue`. Every session tool has this. | Low | Clear session ID in ShellState. Add `/new` or `/fresh` slash command to builtins. |
-| Model selection | Haiku for quick questions, Sonnet for code, Opus for architecture. aichat, shell-gpt, Claude Code all support this. Users expect it. | Low | `a --model haiku "quick question"` or `/model haiku` to set session default. Map short names to full model IDs. Store in config + session state. SDK `query()` accepts `model` option. |
-| Token/cost display | Claude Code shows this. Users want to know what each query costs, especially with Opus. Transparency builds trust. | Low | SDK result message provides `total_cost_usd`, `usage.input_tokens`, `usage.output_tokens`. Display dim line after each response: `[tokens: 1.2k in / 450 out | $0.0034]`. |
-| Pipe-friendly output | `cat error.log \| a summarize` is the killer Unix integration. aichat does this well. Without it, ClaudeShell is not a Unix citizen. | Medium | Detect `!process.stdin.isTTY` for piped input -- read stdin, prepend to prompt. Detect `!process.stdout.isTTY` for piped output -- suppress markdown/colors, output plain text. Must handle both directions independently. |
-| Permission control | Claude SDK has tools that write files and run commands. Users MUST be able to control this. Claude Code's permission modes set the bar. | Medium | Use SDK `permissionMode` option. Default to `"default"` (ask for everything). Implement `canUseTool` callback that prompts user Y/n for destructive ops. Add `/permissions` command to toggle modes. Support `acceptEdits` for trusted sessions. |
-| Configurable AI prefix | Some users want `ai` or `claude` instead of `a`. Power users want customization. | Low | Add `ai_prefix` to config file. Update classifier to check against configured prefix. Default remains `a`. |
+| # | Feature | Why Expected | Complexity | Nesh Dependency |
+|---|---------|--------------|------------|-----------------|
+| 1 | **Alias expansion** | Core value of ~120 plugins. Users type `gst` and expect `git status`. | LOW | `classify.ts` - expand before passthrough |
+| 2 | **Plugin enable/disable** | OMZ has `plugins=(...)` array. Users expect declarative config. | LOW | `config.ts` - plugins array in nesh config |
+| 3 | **Git aliases plugin** | THE most used OMZ plugin (177 aliases, universal adoption). Every OMZ user has it enabled. | LOW | Alias system only |
+| 4 | **Tab completion framework** | ~100 plugins exist solely to add completions. Without this, one-third of all plugins are useless. | HIGH | New `completion.ts` engine integrated with Node readline |
+| 5 | **Directory jumping (z/zoxide)** | Top-5 most requested feature. Users expect `z project` to jump to ~/Projects/myproject. | MEDIUM | New module, frecency database, `cd` hook in shell loop |
+| 6 | **Environment/PATH management** | Plugins like nvm, pyenv, rbenv modify PATH and set env vars on shell init. | LOW | `shell.ts` init hooks, `process.env` manipulation |
+| 7 | **Extract utility** | Universal archive extraction. Users expect `extract foo.tar.gz` to just work. | LOW | Single function, delegates to system tools (tar, unzip, 7z) |
+| 8 | **Sudo toggle (ESC ESC)** | Extremely popular convenience. Press ESC twice to prepend sudo to current/previous command. | MEDIUM | Readline key binding integration |
+| 9 | **Colored man pages** | Visual improvement users notice immediately when missing. | LOW | Set LESS_TERMCAP_* environment variables |
+| 10 | **History substring search** | Arrow-key search through history by partial match. Fish-shell's most loved feature. | MEDIUM | Readline customization with custom keybindings |
+| 11 | **Plugin config in nesh config** | Users expect `~/.nesh/config.json` to control plugins, not a separate system. | LOW | `config.ts` extension of existing schema |
+| 12 | **Bundled core plugins** | OMZ ships 350 plugins built-in. Users expect common ones to work without any install step. | LOW | Ship as npm package contents in dist/ |
+| 13 | **Custom plugin directory** | OMZ has `$ZSH_CUSTOM/plugins/`. Users expect to drop in their own plugins. | LOW | Config path + loader scanning |
+| 14 | **Web search from terminal** | `web-search google "query"` opens browser. Simple but beloved utility. | LOW | Single function using `open`/`xdg-open` |
+| 15 | **Common aliases plugin** | Aliases for ls, grep, mkdir, etc. Baseline productivity improvement. | LOW | Alias system only |
+
+---
 
 ## Differentiators
 
-Features that go beyond what competitors offer. Not expected, but create "wow" moments.
+Features that set Nesh apart from OMZ. Not expected, but create "why would I go back?" moments.
 
-| Feature | Value Proposition | Complexity | Implementation Path |
-|---------|-------------------|------------|---------------------|
-| PTY integration for interactive commands | `vim`, `ssh`, `less`, `htop` work properly. No other AI shell wrapper handles this. spawn with `stdio: 'inherit'` breaks readline. PTY solves it. | High | Use `node-pty` to fork a pseudo-terminal for interactive commands. Detect interactive commands (known list: vim, nano, ssh, less, man, htop, top, docker exec -it) and route through PTY instead of spawn. Restore readline after PTY child exits. This is the hardest v2 feature. |
-| Automatic error recovery | Command fails -> AI diagnoses -> offers concrete fix -> user approves -> fix runs. Not just "explain" but a full recovery loop. | Medium | On non-zero exit: capture stderr + command, prompt user "Want AI to fix this? [Y/n]". If yes, send to `query()` with system prompt instructing to suggest a fix command. Display suggested command, ask for confirmation before executing. Cap recovery loop at 3 attempts. |
-| Project context awareness | Auto-detect project type and inject context. "a run tests" just works in a Node project or a Rust project or a Python project. | Medium | Scan cwd for marker files: `package.json` (Node), `Cargo.toml` (Rust), `pyproject.toml`/`setup.py` (Python), `go.mod` (Go), `Gemfile` (Ruby), `pom.xml`/`build.gradle` (Java), `Makefile`, `docker-compose.yml`, `.git`. Extract project name, dependencies, scripts. Include summary in system prompt. Cache per-directory, invalidate on file change. |
-| Per-project config overrides | `.claudeshell.json` in project root overrides global config (model, permissions, system prompt, allowed tools). | Low | On directory change or AI invocation, walk up from cwd looking for `.claudeshell.json`. Merge with global config (project wins). Support: `model`, `permission_mode`, `system_prompt`, `allowed_tools`, `disallowed_tools`, `ai_prefix`. |
-| Session cost accumulator | Track cumulative cost across all `a` commands in a session. Show running total. No competitor does this well. | Low | Maintain `sessionCost` in ShellState. Add each `result.total_cost_usd` to it. Display in prompt or via `/cost` command. Reset on `/new`. |
-| Model-per-query shorthand | `a! quick question` for Haiku, `a* complex problem` for Opus, `a` for default (Sonnet). Zero-friction model switching. | Low | Classify `a!` and `a*` as AI actions with model override. Map to haiku/opus. Keep `a` as configured default. Distinctive, memorable, fast. |
-| Smart stdin detection | When piped input is large (>50KB), auto-truncate with notice. When piped input is a known format (JSON, CSV, YAML), mention format in prompt context. | Low | Check `Buffer.byteLength(stdin)`. If >50KB, truncate and append "[truncated, showing first 50KB of X KB]". Detect format by first bytes/line patterns. |
+| # | Feature | Value Proposition | Complexity | Nesh Dependency |
+|---|---------|-------------------|------------|-----------------|
+| 1 | **AI-enhanced plugin discovery** | `a suggest plugins for this project` analyzes cwd and recommends plugins. No other shell does this. | MEDIUM | `ai.ts` + `context.ts` integration |
+| 2 | **Profile system** | Pick "developer", "devops", "cloud", "ai-engineer" and get curated plugin sets instantly. OMZ has no profiles; Sheldon does via TOML. | MEDIUM | New `profiles.ts`, config extension |
+| 3 | **TypeScript plugin API** | Type-safe plugin authoring with interfaces and compile-time validation. Catches errors before runtime, unlike shell scripts. | HIGH | New `plugin-api.ts` with full type definitions |
+| 4 | **Cross-platform by default** | OMZ plugins are zsh-only. Nesh plugins work on macOS + Linux with zero shell dependency. | LOW (inherent) | Already Node.js based |
+| 5 | **Lazy loading with startup metrics** | Zinit's killer feature (turbo mode, 80% faster startup). Nesh can do this natively with dynamic `import()`. | MEDIUM | Plugin loader with deferred imports |
+| 6 | **Plugin dependency resolution** | OMZ has zero dependency management. Plugin A requiring Plugin B just fails silently. Prezto's `pmodload` is the only framework that handles this. | MEDIUM | Topological sort in loader |
+| 7 | **Native syntax highlighting** | Reimplement zsh-syntax-highlighting (18K stars) in TypeScript. Works everywhere, no zsh dependency. | HIGH | New `syntax.ts`, deep readline integration |
+| 8 | **Native autosuggestions** | Reimplement zsh-autosuggestions (28K stars) in TypeScript. Fish-like suggestions from history. | HIGH | New `suggestions.ts`, readline integration |
+| 9 | **Plugin management CLI** | `nesh plugin install`, `nesh plugin search`, `nesh plugin list`. OMZ has no CLI for plugin management. | MEDIUM | New `plugin-cli.ts` |
+| 10 | **Git-installable plugins** | `nesh plugin install gh:user/repo`. Like zinit/sheldon but built into the shell. | MEDIUM | Git clone + plugin loader |
+| 11 | **Per-project plugin config** | `.nesh/plugins.json` in project root activates project-specific plugins automatically. OMZ is global-only. | LOW | `config.ts` already has project config infrastructure |
+| 12 | **Hot reload** | Change plugin config, plugins reload without shell restart. OMZ requires `source ~/.zshrc`. | MEDIUM | File watcher + plugin unload/reload lifecycle |
+| 13 | **Plugin health checks** | `nesh plugin doctor` checks for conflicts, missing dependencies, performance issues. | LOW | Diagnostic runner over loaded plugins |
+| 14 | **Declarative completion specs (Fig-style)** | JSON/TS completion specs for any CLI tool, like Fig's 500+ specs. Community-contributable, higher quality than zsh completion functions. | HIGH | New completion engine with spec parser |
+| 15 | **AI-powered alias recall** | Forget an alias? `a what's the git stash alias?` answers from loaded plugin data. | LOW | `ai.ts` with plugin context injection |
+
+---
 
 ## Anti-Features
 
-Features to explicitly NOT build for v2.
+Features to explicitly NOT build. Tempting but wrong for Nesh.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Full conversation replay UI | TUI complexity, scope creep. Users have terminal scrollback. | `/history` command shows recent AI interactions as plain text. Session files are human-readable JSONL. |
-| Autonomous error recovery | Running fix commands without user approval is dangerous. `rm -rf` incident (Claude Code) proves this. | Always show proposed fix, require explicit approval. Never auto-execute. |
-| Multi-model (GPT, Gemini) | Dilutes Claude-native advantage. aichat already does this with 20+ models. | Claude-only. The SDK tool-use integration is the moat. |
-| Streaming cost display | Showing cost mid-stream is noisy and the SDK only reports cost on result message. | Show cost once, after response completes, in a dim status line. |
-| Session sharing/export | Cloud sync, multi-device -- out of scope for local-first tool. | Sessions are local JSONL files. Users can copy/share manually. |
-| PTY for ALL commands | Using node-pty for every command adds latency and complexity. Most commands work fine with spawn. | PTY only for known interactive commands. Spawn for everything else. Provide `/pty <command>` escape hatch for edge cases. |
-| AI-powered tab completion | Extremely complex (readline integration, latency concerns, UX competing with shell completion). | Let system shell handle completion. Focus on the `a` prefix experience. |
-| Background AI tasks | Running AI in background while user types -- concurrency nightmare with readline. | One AI query at a time. User can cancel and start new one. |
+| **Source .plugin.zsh files directly** | Creates zsh dependency, defeats cross-platform goal, shell-in-shell performance nightmare | Port plugin logic to TypeScript modules |
+| **Theme engine (OMZ themes)** | Nesh already has 5 prompt templates. OMZ themes are zsh-specific with `PROMPT=` syntax. Massive scope creep (140+ themes). | Extend existing template system with plugin-provided prompt segments |
+| **Full zsh compatibility layer** | Emulating zsh builtins/options (zle, zstyle, setopt) is unbounded work with diminishing returns | Port the ~80% of plugins that are pure aliases/functions; mark zsh-specific ones as "not applicable" |
+| **Plugin marketplace/registry** | Premature. Need plugin ecosystem to exist first. Registry adds auth, hosting, moderation overhead. | Use Git URLs (GitHub/GitLab) for third-party plugins, like zinit and sheldon do |
+| **GUI plugin manager** | Nesh is a terminal shell. A separate GUI app is scope creep and architectural mismatch. | Interactive TUI picker using readline, like the existing theme selector |
+| **Runtime zsh subprocess for unsupported plugins** | Spawning zsh to run a plugin defeats the purpose. Performance and portability nightmare. | Mark unsupported plugins clearly. Provide migration guide for plugin authors. |
+| **Windows support in v3.0** | OMZ does not support Windows. Adding it now doubles testing surface for no proven user demand. | Design for it (no unix-specific assumptions in plugin API) but do not test or ship yet |
+| **Plugin sandboxing/permissions** | Over-engineering. Plugins run in the same Node.js process. Sandboxing adds complexity with no real security benefit for CLI tools. | Trust model: bundled plugins are trusted, git-installed plugins show a warning on first load |
+
+---
+
+## Top 30 Most Popular/Used OMZ Plugins (Ranked)
+
+Ranked by combination of: GitHub stars (for external plugins), recommendation frequency across 8+ "best plugins" articles from 2024-2026, and category importance. Stars data from [Top Popular ZSH Plugins on GitHub](https://safjan.com/top-popular-zsh-plugins-on-github-2023/) and [Best Oh My ZSH Plugins 2026](https://www.bitdoze.com/best-oh-my-zsh-plugins/).
+
+| Rank | Plugin | Category | Stars/Signal | Port Priority | Complexity |
+|------|--------|----------|-------------|---------------|------------|
+| 1 | **git** | Aliases | Built-in, universal adoption, 177 aliases | P0 | LOW |
+| 2 | **zsh-autosuggestions** | Hooks/Widgets | 28K stars, every "best plugins" list | P0 | HIGH |
+| 3 | **zsh-syntax-highlighting** | Hooks/Widgets | 18K stars, every "best plugins" list | P0 | HIGH |
+| 4 | **z** | Full tool | 15K stars, top-5 in all lists | P0 | MEDIUM |
+| 5 | **fzf** | Full tool | 49K stars (standalone tool) | P1 | HIGH |
+| 6 | **sudo** | Hooks/Widgets | Built-in, appears in every top-10 list | P0 | MEDIUM |
+| 7 | **extract** | Full tool | Built-in, appears in every top-10 list | P0 | LOW |
+| 8 | **docker** | Completion | Built-in, essential for DevOps users | P1 | MEDIUM |
+| 9 | **kubectl** | Completion | Built-in, essential for cloud/k8s users | P1 | MEDIUM |
+| 10 | **history-substring-search** | Hooks/Widgets | Built-in, Fish-inspired, top-10 lists | P0 | MEDIUM |
+| 11 | **npm** | Completion | Built-in, essential for Node.js developers | P1 | MEDIUM |
+| 12 | **colored-man-pages** | Environment | Built-in, frequently recommended | P0 | LOW |
+| 13 | **web-search** | Full tool | Built-in, frequently cited in articles | P1 | LOW |
+| 14 | **thefuck** | Full tool | 76K stars (standalone tool) | P1 | MEDIUM |
+| 15 | **aws** | Completion | Built-in, essential for cloud users | P1 | MEDIUM |
+| 16 | **common-aliases** | Aliases | Built-in, baseline productivity | P0 | LOW |
+| 17 | **copypath** | Full tool | Built-in, simple utility | P0 | LOW |
+| 18 | **copyfile** | Full tool | Built-in, simple utility | P0 | LOW |
+| 19 | **encode64** | Full tool | Built-in, simple utility | P0 | LOW |
+| 20 | **alias-finder** | Full tool | Built-in, helps users learn their aliases | P1 | LOW |
+| 21 | **dotenv** | Environment | Built-in, auto-loads .env files on cd | P1 | LOW |
+| 22 | **docker-compose** | Completion | Built-in, pairs with docker plugin | P1 | MEDIUM |
+| 23 | **nvm** | Environment | Built-in, essential for Node.js developers | P1 | LOW |
+| 24 | **pyenv** | Environment | 30K stars (standalone tool) | P1 | LOW |
+| 25 | **zoxide** | Full tool | Modern successor to z, growing fast | P1 | MEDIUM |
+| 26 | **terraform** | Completion | Built-in, essential for IaC users | P2 | MEDIUM |
+| 27 | **bgnotify** | Hooks/Widgets | Built-in, notifies on long-running command completion | P1 | MEDIUM |
+| 28 | **direnv** | Environment | Built-in, per-directory env loading | P1 | LOW |
+| 29 | **virtualenv** | Environment | Built-in, Python virtual env indicator | P2 | LOW |
+| 30 | **brew** | Aliases | Built-in, macOS-specific aliases | P2 | LOW |
+
+**Priority key:** P0 = ship in initial release (proves the system), P1 = fast follow (broadens value), P2 = community demand driven.
+
+---
 
 ## Feature Dependencies
 
 ```
-v1 (already built)
-  |
-  +-- Session management
-  |     |-- Session context (SDK resume)
-  |     |-- Fresh context (/new command)
-  |     +-- Session cost accumulator
-  |
-  +-- Pipe-friendly AI
-  |     |-- Stdin detection (isTTY check)
-  |     |-- Stdout plain-text mode (no markdown when piped)
-  |     +-- Smart stdin detection (format, truncation)
-  |
-  +-- PTY integration
-  |     +-- node-pty for interactive commands (independent of AI features)
-  |
-  +-- Permission control
-  |     |-- SDK permissionMode
-  |     +-- canUseTool callback (user prompt)
-  |
-  +-- Model selection
-  |     |-- Config-level default
-  |     |-- Per-query flag (--model)
-  |     +-- Shorthand prefixes (a!, a*)
-  |
-  +-- Token/cost display
-  |     +-- SDK result message parsing
-  |
-  +-- Error recovery
-  |     |-- Existing error capture (lastError) 
-  |     +-- AI-assisted fix suggestion + approval
-  |
-  +-- Project context awareness
-  |     |-- Marker file scanning
-  |     +-- System prompt injection
-  |
-  +-- Per-project config
-  |     |-- .claudeshell.json detection
-  |     +-- Config merge with global
-  |
-  +-- Configurable prefix
-        +-- Classifier update to use config value
+Plugin Loader -------> ALL other plugin features depend on this
+  (lifecycle,           being built first
+   registry,
+   config integration)
+
+Alias System ---------> Git Plugin, Common Aliases, Brew, Docker aliases,
+  (expand before         kubectl aliases, npm aliases
+   passthrough)          (~120 aliases-only plugins depend on this)
+
+Completion Engine ----> Docker, Kubectl, NPM, AWS, Terraform, Helm,
+  (readline tab          docker-compose completions
+   integration)          (~100 completion plugins depend on this)
+
+Readline Hook --------> Sudo toggle, History substring search,
+  System                 Autosuggestions, Syntax highlighting
+  (key bindings,         (~30 interactive plugins depend on this)
+   preexec/precmd)
+
+Shell Lifecycle ------> Directory jumping (z/zoxide needs chpwd hook),
+  Hooks                  Dotenv (needs chpwd), bgnotify (needs preexec/precmd),
+  (chpwd, preexec,       Per-directory history, git-auto-fetch
+   precmd)
+
+Config System --------> Plugin enable/disable, Profiles, Per-project plugins,
+  Extension              Per-plugin configuration
+  (plugins array,
+   profile selection)
+
+Prompt Segments ------> Git info in prompt, Virtualenv indicator,
+  API                    Kube context display, Node version
+  (plugin-provided       (prompt-enriching plugins)
+   prompt data)
 ```
 
-Key dependency chains:
-- **Session management** depends on nothing new -- SDK provides `resume`/`continue`
-- **Token/cost display** depends on nothing new -- SDK provides `total_cost_usd`
-- **Pipe-friendly AI** depends on nothing new -- `process.stdin.isTTY` and `process.stdout.isTTY` are Node builtins
-- **PTY integration** requires `node-pty` (native addon, adds build complexity)
-- **Permission control** depends on SDK `canUseTool` callback (already available)
-- **Error recovery** builds on existing `lastError` capture in ShellState
-- **Project context** and **per-project config** are independent but complement each other
+**Critical path 1:** Plugin Loader -> Alias System -> Git plugin
+*Proves the system works with the single most-used plugin*
 
-## Implementation Complexity Matrix
+**Critical path 2:** Plugin Loader -> Readline Hooks -> History substring search
+*Proves interactive/keybinding plugins work*
 
-| Feature | Code Complexity | Risk | SDK Support | Priority |
-|---------|----------------|------|-------------|----------|
-| Session context | Medium | Low (SDK handles storage) | `resume`, `continue` options | P0 |
-| Fresh context `/new` | Low | None | Clear session ID | P0 |
-| Token/cost display | Low | None | `total_cost_usd` on result | P0 |
-| Model selection | Low | None | `model` option on `query()` | P0 |
-| Pipe-friendly AI | Medium | Medium (edge cases with binary data, encoding) | N/A (Node stdio) | P0 |
-| Configurable prefix | Low | None | N/A (classifier change) | P1 |
-| Permission control | Medium | Low (SDK provides infrastructure) | `permissionMode`, `canUseTool` | P1 |
-| Error recovery | Medium | Low | Existing `lastError` + new `query()` | P1 |
-| Project context | Medium | Low | System prompt injection | P1 |
-| Per-project config | Low | Low | N/A (config merge) | P2 |
-| PTY integration | High | High (native addon, platform differences, readline conflict) | N/A (node-pty) | P2 |
-| Session cost accumulator | Low | None | `total_cost_usd` accumulation | P2 |
-| Model shorthand (a!, a*) | Low | None | Classifier extension | P2 |
+**Critical path 3:** Plugin Loader -> Completion Engine -> Docker/kubectl completions
+*Proves completions work -- unlocks ~100 plugins*
 
-## Phase Recommendation for v2
+---
 
-### Phase 1: Session & Visibility (P0 features, low risk)
-1. Session context via SDK `resume`/`continue`
-2. `/new` command to reset session
-3. Token/cost display after responses
-4. Model selection (`/model`, `--model` flag, config default)
+## What Competing Frameworks Improve Over OMZ
 
-**Rationale:** These are the highest-value, lowest-risk features. They transform ClaudeShell from stateless to stateful and give users cost visibility. All rely on well-documented SDK capabilities.
+| Framework | Key Innovation | Should Nesh Adopt? |
+|-----------|---------------|-------------------|
+| **Zinit** | Turbo mode (async/lazy loading, 80% faster startup). Plugin-level bytecode compilation. Load reporting (`zinit times`). | YES: lazy loading via dynamic `import()`. YES: `nesh plugin times` for load diagnostics. |
+| **Sheldon** | TOML config with profiles. Shell-agnostic design. Rust-speed parallel install. Template-based plugin rendering. | YES: profiles (already planned). YES: declarative config (already JSON-based). |
+| **Antidote** | Static plugin file generation (zero runtime parsing overhead). Concurrent plugin resolution. | PARTIAL: Nesh compiles to JS anyway, so "static" is inherent. No extra work needed. |
+| **Fig/Warp** | IDE-style completion specs (declarative JSON schemas for 500+ CLIs). Visual autocomplete dropdown. | YES: declarative completion specs are higher quality than zsh completion functions and community-contributable. |
+| **Prezto** | Module system with explicit dependencies (`pmodload`). Optimized defaults (zcompdump caching, `--no-rehash` for version managers). | YES: dependency resolution between plugins. YES: smart defaults out of the box. |
+| **Zplug** | DSL for plugin sources (GitHub, local, oh-my-zsh snippets). Hook system (at-load, at-unload). | PARTIAL: Git source support. YES: lifecycle hooks (onLoad, onUnload, onUpdate). |
 
-### Phase 2: Unix Integration (P0-P1, medium risk)
-1. Pipe-friendly AI (stdin/stdout TTY detection)
-2. Error recovery loop (diagnose + suggest fix + approve)
-3. Configurable AI prefix
+### Synthesized Improvements for Nesh Over OMZ
 
-**Rationale:** Pipe support makes ClaudeShell a Unix citizen -- the single most differentiating feature for shell users. Error recovery builds on existing `lastError`. Prefix config is trivial.
+1. **Lazy loading by default** (from Zinit) - Plugins loaded on first use, not shell startup
+2. **Profiles** (from Sheldon) - Curated plugin sets for developer personas
+3. **Declarative completion specs** (from Fig) - JSON/TS specs instead of zsh completion functions
+4. **Dependency resolution** (from Prezto) - Plugins declare what they need, loader resolves order
+5. **Lifecycle hooks** (from Zsh Plugin Standard) - onLoad, onUnload, onUpdate
+6. **Performance diagnostics** (from Zinit) - `nesh plugin times` shows per-plugin load cost
+7. **Static type safety** (unique to Nesh) - TypeScript catches plugin errors at build time, not at shell startup
 
-### Phase 3: Context & Control (P1, medium complexity)
-1. Permission control (SDK modes + canUseTool callback)
-2. Project context awareness (marker file scanning)
-3. Per-project config (`.claudeshell.json` overrides)
+---
 
-**Rationale:** These features make ClaudeShell project-aware and safe. Permission control is critical for trust. Project context makes AI responses smarter without user effort.
+## Plugin Manager Features Users Expect
 
-### Phase 4: Advanced (P2, high complexity)
-1. PTY integration for interactive commands
-2. Session cost accumulator
-3. Model shorthand prefixes (a!, a*)
+Based on analysis of zinit, sheldon, antidote, zplug, zgenom, and community discussions:
 
-**Rationale:** PTY is the hardest feature and benefits fewer users (most commands work fine with spawn). Cost accumulator and shorthands are polish.
+| Feature | Must Have | Nice to Have | Overkill for v3 |
+|---------|-----------|-------------|-----------------|
+| Enable/disable plugins in config | YES | | |
+| List installed/enabled plugins | YES | | |
+| Search available bundled plugins | | YES | |
+| Install from git URL | YES | | |
+| Update installed plugins | YES | | |
+| Remove installed plugins | YES | | |
+| Lazy loading (deferred init) | | YES (becomes must-have at >20 plugins) | |
+| Profiles/groups | | YES | |
+| Lock file (pinned versions) | | | YES |
+| Plugin templates/scaffolding | | | YES |
+| Parallel install | | YES | |
+| Post-install hooks | | YES | |
+| Interactive TUI browser | | YES | |
+| Conflict detection | | | YES |
+| Plugin update notifications | | | YES |
+
+---
+
+## MVP Recommendation
+
+### Phase 1: Prove the Engine (ship first, validates architecture)
+
+Prioritize features that prove the plugin system works end-to-end across all 5 categories:
+
+1. **Plugin loader with lifecycle** - load, enable, disable, unload
+2. **Alias system** - expand aliases before passthrough (unlocks ~120 plugins)
+3. **Git plugin** - THE most used plugin, pure aliases, proves aliases-only category
+4. **Common aliases** - Second most basic plugin, proves breadth
+5. **Extract, copypath, copyfile, encode64** - Simple utility plugins, proves full-tool category
+6. **Colored man pages** - Proves environment-setup category
+7. **Plugin config in nesh config** - `{ "plugins": ["git", "common-aliases", "extract"] }`
+8. **Sudo toggle** - Proves readline hook integration
+
+### Phase 2: Interactive Power (fast follow, the "wow" features)
+
+9. **History substring search** - Proves readline integration at depth
+10. **Completion engine** - Unlocks ~100 completion plugins
+11. **Directory jumping (z)** - High-demand utility plugin
+12. **Autosuggestions** - Killer feature (28K stars), requires deep readline work
+13. **Profile system** - "developer", "devops", "cloud" presets
+14. **Plugin management CLI** - `nesh plugin list/install/remove/update`
+
+### Phase 3: Ecosystem Growth (community and scale)
+
+15. **Syntax highlighting** - Most complex interactive plugin (18K stars)
+16. **Git-installable third-party plugins** - Opens community ecosystem
+17. **Declarative completion specs** - Fig-style, community contributable
+18. **Lazy loading** - Performance at scale (>20 plugins)
+19. **AI-enhanced plugin discovery** - Nesh's unique differentiator
+20. **Batch port of P1/P2 alias and environment plugins** (docker, kubectl, npm, aws, nvm, pyenv, etc.)
+
+### Defer Indefinitely
+
+- Plugin marketplace/registry (premature)
+- Windows support (no demand)
+- OMZ theme engine (already have templates)
+- Zsh compatibility layer (unbounded scope)
+- Plugin sandboxing (over-engineering)
+
+---
 
 ## Sources
 
-- [Claude Agent SDK Sessions](https://platform.claude.com/docs/en/agent-sdk/sessions) - Session resume/continue/fork options (HIGH confidence)
-- [Claude Agent SDK Cost Tracking](https://platform.claude.com/docs/en/agent-sdk/cost-tracking) - `total_cost_usd`, `modelUsage`, per-step token tracking (HIGH confidence)
-- [Claude Agent SDK Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) - 5 permission modes, `canUseTool` callback, allow/deny rules (HIGH confidence)
-- [Claude Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) - Full query options including `model`, `resume`, `systemPrompt` (HIGH confidence)
-- [aichat](https://github.com/sigoden/aichat) - Competitor: sessions, piping, multi-model, shell assistant (MEDIUM confidence)
-- [aichat Command Line Guide](https://github.com/sigoden/aichat/wiki/Command-Line-Guide) - Pipe/stdin patterns (MEDIUM confidence)
-- [node-pty](https://github.com/microsoft/node-pty) - PTY bindings for Node.js, used by VS Code terminal (HIGH confidence)
-- [Anthropic Claude Code Sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing) - Permission/sandbox architecture (HIGH confidence)
-- [ctx CLI](https://dev.to/lakshmisravyavedantham/i-built-a-cli-that-gives-any-ai-instant-context-about-your-project-3ig8) - Project context detection patterns (LOW confidence)
-- [Gemini CLI Context Management](https://datalakehousehub.com/blog/2026-03-context-management-gemini-cli/) - Hierarchical context, GEMINI.md (MEDIUM confidence)
-- [Claude Code Session Management](https://stevekinney.com/courses/ai-development/claude-code-session-management) - Session persistence patterns (MEDIUM confidence)
+### Official Repositories and Documentation
+- [Oh-My-Zsh GitHub](https://github.com/ohmyzsh/ohmyzsh) - 155K stars, 350+ plugins, 2400+ contributors
+- [OMZ Plugins Wiki](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins) - Complete alphabetical plugin list with descriptions
+- [OMZ Plugins Overview](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins-overview) - Categorized list (Productivity, Build Tools, Node, PHP, Ruby, Python, Distro, macOS, Misc)
+- [Zsh Plugin Standard](https://wiki.zshell.dev/community/zsh_plugin_standard) - Formal spec: file structure, $0 handling, PMSPEC, lifecycle hooks, naming conventions
+- [OMZ Git Plugin Source](https://github.com/ohmyzsh/ohmyzsh/blob/master/plugins/git/git.plugin.zsh) - 177 aliases reference implementation
+
+### Plugin Managers and Competing Frameworks
+- [Zinit](https://github.com/zdharma-continuum/zinit) - Turbo mode, async loading, plugin bytecode compilation
+- [Sheldon](https://github.com/rossmacarthur/sheldon) - TOML config, profiles, Rust performance, shell-agnostic
+- [Sheldon Configuration Docs](https://sheldon.cli.rs/Configuration.html) - Profile system, templates, plugin sources
+- [Antidote](https://getantidote.github.io/) - Static plugin file generation, concurrent resolution
+- [Fig Autocomplete](https://github.com/withfig/autocomplete) - 500+ declarative completion specs, IDE-style
+- [Prezto](https://github.com/sorin-ionescu/prezto) - Module system with pmodload, optimized defaults
+- [Zplug](https://github.com/zplug/zplug) - DSL for sources, parallel install, lazy loading, hooks
+
+### Popularity and Rankings
+- [Top Popular ZSH Plugins on GitHub (2023)](https://safjan.com/top-popular-zsh-plugins-on-github-2023/) - Comprehensive stars-based ranking across categories
+- [Best Oh My ZSH Plugins for 2026](https://www.bitdoze.com/best-oh-my-zsh-plugins/) - Current recommendations with categories
+- [24 Zsh Plugins for 2025](https://dev.to/chandrashekhar/24-zsh-plugins-every-developer-devops-engineer-should-use-in-2025-383k) - Developer/DevOps focus
+- [Top 10 OMZ Plugins for Productive Developers](https://travis.media/blog/top-10-oh-my-zsh-plugins-for-productive-developers/) - Productivity focus
+- [The Only 6 Zsh Plugins You Need](https://catalins.tech/zsh-plugins/) - Minimalist essential set
+
+### Framework Comparisons and Performance
+- [ZSH Frameworks and Plugin Managers Comparison](https://gist.github.com/laggardkernel/4a4c4986ccdcaf47b91e8227f9868ded) - Detailed performance and feature analysis with startup benchmarks
+- [Plugin Manager Benchmark](https://github.com/rossmacarthur/zsh-plugin-manager-benchmark) - Load time and install time benchmarks
+- [Slant: Best Plugin Managers for ZSH (2026)](https://www.slant.co/topics/3265/~best-plugin-managers-for-zsh) - Community voting and comparison

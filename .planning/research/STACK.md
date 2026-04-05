@@ -1,301 +1,229 @@
 # Technology Stack
 
-**Project:** ClaudeShell v2 -- Sessions & Power Features
-**Researched:** 2026-03-31
+**Project:** Nesh v3.0 -- Oh-My-Nesh Plugin Ecosystem
+**Researched:** 2026-04-03
 
-## Current Stack (v1, validated)
+## Existing Stack (No Changes Needed)
+
+These are already in place and validated from v1/v2. Listed for integration context only.
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| TypeScript | ^6.0.2 | Language |
-| Node.js | >=22.0.0 | Runtime |
-| @anthropic-ai/claude-agent-sdk | ^0.2.88 | AI backbone |
+| Node.js | >=22.0.0 | Runtime (ESM, recursive fs.watch support) |
+| TypeScript | ^6.0.2 | Language with strict mode |
+| @anthropic-ai/claude-agent-sdk | ^0.2.91 | AI backbone |
 | marked + marked-terminal | ^15 / ^7.3 | Markdown rendering |
 | picocolors | ^1.1.1 | Terminal colors |
+| openai | ^6.33.0 | OpenAI-compatible providers |
+| @google/generative-ai | ^0.24.1 | Gemini provider |
 | tsdown | ^0.21.7 | Bundler |
 | tsx | ^4.21.0 | Dev runner |
 | vitest | ^4.1.2 | Tests |
 | node:readline/promises | built-in | REPL input |
 
-## Stack Additions for v2
+## New Stack Additions for v3
 
-### Sessions -- NO new dependency needed
+### Plugin Loader and Lifecycle (zero new dependencies)
 
-**Confidence: HIGH** (verified via official Claude Agent SDK docs)
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Node.js dynamic `import()` | built-in | Load plugin modules at runtime | Nesh already uses lazy `import()` for the Claude SDK. Same pattern extends to plugins. No loader library needed -- plugins are standard ESM modules with a known export shape. |
+| `node:fs` (readdir, stat) | built-in | Discover plugins in directories | Scan `~/.nesh/plugins/` and bundled plugin dirs at startup. Synchronous discovery is fine -- oh-my-zsh does the same. |
+| `node:path` + `node:url` | built-in | Resolve plugin paths to `file://` URLs for `import()` | Required for cross-platform dynamic import of absolute paths on both macOS and Linux. |
 
-The Claude Agent SDK already provides everything for session management. No new library required.
+**Rationale:** A plugin is a directory containing an `index.ts` (or compiled `index.js`) that default-exports an object conforming to the `NeshPlugin` interface. No plugin framework library is needed -- the TypeScript interface IS the framework. This mirrors how oh-my-zsh works: a naming convention (`<name>.plugin.zsh`) plus a known structure. In Nesh, the convention is `<name>/index.js` exporting a `NeshPlugin`.
 
-| SDK Feature | How ClaudeShell Uses It | API |
-|-------------|------------------------|-----|
-| `continue: true` | Continue most recent session in cwd | `query({ options: { continue: true } })` |
-| `resume: sessionId` | Resume a specific past session by ID | `query({ options: { resume: id } })` |
-| `forkSession: true` | Branch from a session without losing original | `query({ options: { resume: id, forkSession: true } })` |
-| `persistSession: false` | Ephemeral one-shot queries (no disk write) | `query({ options: { persistSession: false } })` |
-| `listSessions()` | List past sessions for a project directory | `listSessions({ dir: cwd, limit: N })` |
-| `getSessionMessages()` | Read history from a past session transcript | `getSessionMessages(sessionId, { dir })` |
-| `session_id` on ResultMessage | Capture session ID for resume/fork | Available on every `SDKResultMessage` |
+**Why not tapable/architect/c9:** These are plugin systems designed for complex multi-hook pipelines (webpack) or large-scale server dependency injection (Cloud9). Nesh plugins have a simple lifecycle: `init(context) -> active -> destroy()`. A TypeScript interface enforces the contract at compile time. Adding a plugin framework library would be over-engineering.
 
-**Implementation pattern:** Store the current `sessionId` in `ShellState`. On subsequent `a` commands, pass `continue: true` or `resume: sessionId`. Add a `/new` slash command to start a fresh session (just omit continue/resume). Add `/sessions` to list past sessions via `listSessions()`.
+### Auto-Suggestions Engine (zero new dependencies)
 
-Source: [Claude Agent SDK Sessions docs](https://platform.claude.com/docs/en/agent-sdk/sessions)
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `readline.emitKeypressEvents()` | built-in | Intercept each keystroke for ghost-text rendering | Emits `keypress` events on stdin. Combined with `rl.line` and `rl.cursor`, provides all primitives needed for fish-style suggestions. |
+| `readlinePromises.Readline` class | built-in | Cursor manipulation (`cursorTo`, `clearLine`, `moveCursor`) with transaction support | The Readline class provides `commit()`/`rollback()` for batched cursor operations. Avoids flicker when clearing and redrawing ghost text. |
+| History-based suggestion source | custom code | Prefix-match current input against command history | zsh-autosuggestions works primarily from history. Same approach: search `~/.nesh/history` for the most recent line matching the current prefix. No external library needed. |
 
-### Model Selection -- NO new dependency needed
+**How it works:** On each keypress, check history for the most recent command starting with `rl.line`. If found, render the remaining suffix in dim ANSI (`\x1b[2m...text...\x1b[0m`) after the cursor position. On the next keypress, clear the ghost text before processing. Right-arrow accepts the full suggestion (copies it to `rl.line`). This is exactly how zsh-autosuggestions and fish work.
 
-**Confidence: HIGH** (verified via official SDK reference)
+**Why no library exists:** Auto-suggestions for Node.js readline is a niche requirement. No maintained npm package implements fish-style ghost text on top of `node:readline`. The primitives (`rl.line`, `rl.cursor`, `readline.cursorTo`, `readline.clearLine`) are all built-in. The implementation is approximately 100-150 lines.
 
-The SDK `Options` type accepts a `model` field (string). The `Query` object also exposes `setModel()` for mid-session changes and `supportedModels()` to list available models.
+**Confidence:** HIGH -- all APIs verified against Node.js v25 readline documentation.
 
-| SDK Feature | Use Case |
-|-------------|----------|
-| `options.model` | Set model at query time (`"claude-sonnet-4-20250514"`, etc.) |
-| `query.supportedModels()` | Discover available models dynamically |
-| `query.setModel(model)` | Change model mid-session (streaming input mode) |
-| `options.fallbackModel` | Automatic fallback if primary model fails |
+### Syntax Highlighting (one new dependency)
 
-**Implementation pattern:** Add `model` field to config.json. Support `a --haiku`, `a --opus`, `a --sonnet` prefix flags. Map shorthand names to full model strings. Use `supportedModels()` once at startup to validate.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| **emphasize** | ^7.0.0 | ANSI syntax highlighting for shell commands | Wraps lowlight/highlight.js to output ANSI-colored text for 190+ languages. Use the `bash` grammar to highlight shell input in real-time. ESM-compatible, TypeScript types included, maintained by wooorm (unified ecosystem). |
 
-Source: [Claude Agent SDK TypeScript reference](https://platform.claude.com/docs/en/agent-sdk/typescript)
+**Why emphasize over cli-highlight:** emphasize outputs ANSI escape codes directly from a highlight.js grammar. cli-highlight converts highlight.js HTML output to ANSI -- an unnecessary intermediate step that adds latency. For real-time keystroke rendering where every millisecond matters, the direct ANSI path is better. emphasize is also smaller (fewer transitive deps) and part of the well-maintained unified/remark ecosystem.
 
-### Token/Cost Display -- NO new dependency needed
+**Why not custom regex-based highlighting:** Shell syntax is deceptively complex: nested quotes, heredocs, parameter expansion (`${var:-default}`), process substitution, globbing, escape sequences. A proper grammar-based highlighter (highlight.js bash grammar) handles all of these correctly. A regex approach would require months of edge-case fixing.
 
-**Confidence: HIGH** (verified via official SDK reference)
+**Integration with readline:** On each keypress, run `emphasize.highlight('bash', rl.line)` to get ANSI-colored output. Clear the current line, move cursor to start, write the highlighted text, then restore cursor position. The `readlinePromises.Readline` transaction APIs (`clearLine(0)`, `cursorTo(col)`, `commit()`) handle this without flicker. Performance is not a concern -- highlight.js processes single lines in under 1ms.
 
-`SDKResultMessage` already contains all cost/token data:
+**Confidence:** HIGH -- emphasize verified on npm, ESM-compatible, TypeScript types bundled.
 
+### Tab Completion System (zero new dependencies)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `readline.createInterface({ completer })` | built-in | Tab completion hook | Node readline has a built-in completer function API that supports both sync and async completers. Returns `[[completions], originalSubstring]`. This is the hook point for all plugin-provided completions. |
+| Fig-style completion spec types | custom TypeScript types | Declarative completion definitions per command | Adopt the Fig/withfig autocomplete spec format as TypeScript interfaces. Plugins define completions as `{ name, subcommands, options, args }` trees. This is the de facto industry standard used by Fig, Warp, and Amazon Q. |
+
+**Completer function signature (from Node.js docs):**
 ```typescript
-{
-  total_cost_usd: number;
-  duration_ms: number;
-  num_turns: number;
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    cache_read_input_tokens: number;
-    cache_creation_input_tokens: number;
-  };
-  modelUsage: {
-    [modelName: string]: {
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadInputTokens: number;
-      cacheCreationInputTokens: number;
-      costUSD: number;
-    }
-  };
-}
+// Sync
+function completer(line: string): [string[], string]
+// Async
+function completer(line: string): Promise<[string[], string]>
 ```
 
-**Implementation pattern:** After the `for await` loop completes, check for `message.type === "result"` and render a summary line like `[sonnet | 1.2k in, 890 out | $0.0043 | 2.1s]` using picocolors (already a dependency).
+**Why Fig-style specs:** The withfig/autocomplete repository has 400+ existing completion specs for common CLI tools (git, docker, npm, kubectl). By adopting compatible types, Nesh plugins can reference and adapt these specs. The format is a nested tree: commands have subcommands, options (flags starting with `-`), and args. Args can have generators (static lists or dynamic shell commands like `git branch --list`).
 
-### Permission Control -- NO new dependency needed
+**Confidence:** HIGH for readline completer API. MEDIUM for Fig spec compatibility -- Fig was acquired by Amazon and the format may evolve, but the existing TypeScript types in withfig/autocomplete are stable and MIT-licensed.
 
-**Confidence: HIGH** (verified via official SDK permissions docs)
-
-The SDK provides five permission modes and declarative allow/deny rules:
-
-| Mode | Behavior | When to Use |
-|------|----------|-------------|
-| `"default"` | Falls through to `canUseTool` callback | Interactive approval |
-| `"dontAsk"` | Deny anything not in `allowedTools` | Locked-down headless mode |
-| `"acceptEdits"` | Auto-approve file edits, deny bash unless allowed | Trust edits, control execution |
-| `"bypassPermissions"` | Approve everything (dangerous) | Fully trusted environments |
-| `"plan"` | No tool execution at all | Read-only analysis mode |
-
-Additionally:
-- `allowedTools: string[]` -- pre-approve specific tools
-- `disallowedTools: string[]` -- always deny specific tools (overrides everything)
-- `canUseTool` callback -- runtime approval function
-
-**Implementation pattern:** Add `permission_mode` and `allowed_tools` / `disallowed_tools` arrays to config.json. Default to `"acceptEdits"` (current behavior). Expose via `/permissions` command to cycle modes. Support per-project overrides.
-
-Source: [Claude Agent SDK Permissions docs](https://platform.claude.com/docs/en/agent-sdk/permissions)
-
-### Pipe-Friendly AI Output -- NO new dependency needed
-
-**Confidence: HIGH** (Node.js built-in)
-
-Pipe detection uses `process.stdin.isTTY` and `process.stdout.isTTY` (Node.js built-in). The codebase already checks `process.stdout.isTTY` in `createRenderer()`.
-
-**Implementation pattern:**
-
-1. **Detect pipe input:** `!process.stdin.isTTY` means stdin is piped. Read all stdin chunks, concatenate, then pass as context to the AI prompt.
-2. **Plain output for pipes:** When `!process.stdout.isTTY`, skip markdown rendering (already handled), suppress "Thinking..." indicator, and write only the final text result to stdout (no tool notifications, no color).
-3. **Usage:** `cat log.txt | claudeshell "summarize this"` -- detect non-TTY stdin, read piped data, prepend to prompt.
-
-Changes needed:
-- `cli.ts`: Check `process.stdin.isTTY`. If false, read stdin, pass as prompt context, and run single-shot (no REPL loop).
-- `renderer.ts`: Already has `isTTY` flag. Extend to suppress all decoration when piping.
-- `ai.ts`: Accept optional `stdinContent` parameter to prepend to prompt.
-
-### PTY Support (Interactive Commands) -- NEW dependency: `node-pty`
-
-**Confidence: MEDIUM** (node-pty is the standard but has native addon friction)
+### Git Operations for Plugin Install (one new dependency)
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| `node-pty` | ^1.1.0 | Pseudo-terminal for interactive commands | Only viable option for Node.js PTY; used by VS Code, Hyper, and 1000+ npm packages |
+| **simple-git** | ^3.27.0 | Clone and update plugin repos from GitHub/GitLab | Wraps the system `git` CLI with a clean async API. Full TypeScript types, ESM support since v3, 19M weekly npm downloads. |
 
-**Why node-pty:** Interactive commands (vim, ssh, less, htop) require a pseudo-terminal that handles raw mode, screen clearing, cursor positioning, and signal forwarding. Node's `child_process.spawn` with `stdio: 'inherit'` does NOT provide a proper PTY -- it inherits the parent's terminal but doesn't allocate a new one, so programs that call `isatty()` or use `tcgetattr()` may misbehave.
+**Why simple-git over isomorphic-git:** isomorphic-git is a pure JavaScript git reimplementation (~300KB+, heavy transitive deps). It is designed for environments without a git binary (browsers, serverless). Nesh users installing plugins from git repos already have git installed -- they are developers using a developer shell. simple-git wraps the existing binary, which is faster, smaller, and handles authentication (SSH keys, credential helpers) naturally.
 
-**Why not alternatives:**
-- `pty.node` -- abandoned (last publish 5 years ago)
-- `node-pty-prebuilt` -- stale fork, install issues
-- `@lydell/node-pty` -- thin wrapper around node-pty, not independent
-- Raw Node.js `child_process` -- no PTY allocation, interactive programs break
+**Why simple-git over raw spawn:** simple-git provides: (1) progress callbacks for download progress display, (2) proper error typing with structured error objects, (3) shallow clone support (`--depth 1`) for faster installs, (4) pull/fetch for updates, (5) edge case handling (auth prompts, large repos, timeout). Worth the small dependency for a clean plugin install UX.
 
-**Installation concern:** node-pty is a native addon requiring compilation (node-gyp + C++ toolchain). This adds friction to `npm install -g claudeshell`. Mitigations:
-1. Make `node-pty` an **optional dependency** (`optionalDependencies` in package.json)
-2. Fall back to `spawn({ stdio: 'inherit' })` when node-pty is unavailable
-3. Document build prerequisites (Xcode CLI tools on macOS, build-essential on Linux)
-4. Recent PR (#809) adds prebuild support, reducing compilation needs
+**Why not degit:** degit (Rich Harris) downloads tarballs without git history -- good for scaffolding but plugins need `git pull` for updates. Plugin update is a core requirement.
 
-**Implementation pattern:**
-1. Detect interactive commands heuristically (vim, nano, ssh, less, top, htop, man)
-2. If node-pty available, spawn via `pty.spawn()` with full PTY
-3. If not available, fall back to current `spawn({ stdio: 'inherit' })` with a warning
-4. Forward SIGWINCH for terminal resize
+**Confidence:** HIGH -- simple-git verified on npm, actively maintained, 19M weekly downloads.
 
-Source: [node-pty GitHub](https://github.com/microsoft/node-pty)
+### Shell Function and Alias Registration (zero new dependencies)
 
-### Project Context Awareness -- NO new dependency needed
-
-**Confidence: HIGH**
-
-Detection of project files (package.json, Cargo.toml, pyproject.toml, go.mod, etc.) is trivial filesystem work using `node:fs`. No library needed.
-
-**Implementation pattern:**
-1. On shell startup (and after `cd`), scan cwd for known project files
-2. Build a context string: `"Node.js project (package.json), using TypeScript, vitest, React"`
-3. Inject into the system prompt passed to `query()`
-4. Optionally read relevant sections (name, scripts, dependencies keys)
-
-Files to detect and extract from:
-
-| File | Ecosystem | What to Extract |
-|------|-----------|-----------------|
-| `package.json` | Node.js | name, scripts keys, key deps |
-| `Cargo.toml` | Rust | package name |
-| `pyproject.toml` / `requirements.txt` | Python | project name, key deps |
-| `go.mod` | Go | module name |
-| `Gemfile` | Ruby | -- |
-| `pom.xml` / `build.gradle` | Java | -- |
-| `Makefile` | C/C++ | -- |
-| `.git/` | Any | current branch name |
-| `CLAUDE.md` | Claude projects | full content for system prompt |
-
-### Per-Project Configuration -- NO new dependency needed
-
-**Confidence: HIGH**
-
-**Implementation pattern:** Look for `.claudeshell/config.json` in cwd (and parent dirs up to git root or home). Merge with global `~/.claudeshell/config.json` using spread (project overrides global). Same `ClaudeShellConfig` type, extended with v2 fields.
-
-Config resolution order (last wins):
-1. Built-in defaults
-2. `~/.claudeshell/config.json` (global)
-3. `<project-root>/.claudeshell/config.json` (project)
-4. Environment variables (`ANTHROPIC_API_KEY`, etc.)
-5. Command-line flags (`a --haiku`)
-
-### Configurable AI Command Prefix -- NO new dependency needed
-
-**Confidence: HIGH**
-
-Currently hardcoded as `"a"` in `classify.ts`. Make it configurable via config.json.
-
-```typescript
-// config.json
-{ "ai_prefix": "ai" }
-
-// classify.ts -- read prefix from config instead of hardcoded "a"
-```
-
-### Error Recovery -- NO new dependency needed
-
-**Confidence: HIGH**
-
-Already partially implemented (`lastError` in ShellState, `a explain` / `a why`). Extend to:
-1. Auto-detect failed commands (exit code !== 0) -- already done
-2. Offer to diagnose: `Command failed. Type 'a fix' to auto-fix.` -- partially done
-3. `a fix` sends stderr + command to AI with "fix this" prompt -- new
-4. AI can execute the fix directly (with permission mode controlling safety)
-
-### Fresh Context Slash Command -- NO new dependency needed
-
-**Confidence: HIGH**
-
-`/new` command clears the current session ID from ShellState, so the next `a` command creates a fresh session (no `continue` or `resume` passed to SDK).
-
-## Recommended Stack (v2 complete)
-
-### Core (unchanged)
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| TypeScript | ^6.0.2 | Language | Matches SDK |
-| Node.js | >=22.0.0 | Runtime | SDK requirement |
-| @anthropic-ai/claude-agent-sdk | ^0.2.88 | AI backbone (sessions, models, permissions, costs) | All v2 AI features are SDK-native |
-| marked | ^15.0.12 | Markdown parsing | Existing |
-| marked-terminal | ^7.3.0 | Terminal markdown | Existing |
-| picocolors | ^1.1.1 | Terminal colors | Existing |
+| Extended `classifyInput()` | existing code in classify.ts | Route plugin-registered aliases before passthrough | Aliases are `Map<string, string>` (name to expansion). Before passthrough classification, check alias map and expand. Pure code change. |
+| Shell function registry | custom `Map<string, PluginFunction>` | Store plugin-provided functions callable from shell | Functions are `(args: string[], context: PluginContext) => Promise<void>`. Registered by plugins during init, invoked by name before passthrough. Same as builtins but dynamically registered. |
 
-### New (optional)
+**How oh-my-zsh does it:** Plugins define aliases via `alias gst='git status'` and functions via `function gco() { ... }`. In Nesh, plugins call `context.registerAlias('gst', 'git status')` and `context.registerFunction('gco', handler)` during init. The classify step checks these registries before falling through to passthrough.
+
+**Integration with classify.ts:** Currently `classifyInput()` checks builtins then falls through to passthrough. The new flow: builtins -> function registry -> alias expansion -> passthrough. A new `InputAction` variant `{ type: 'plugin-function'; name: string; args: string }` handles function invocations. Alias expansion rewrites the command string and re-classifies.
+
+### Plugin Configuration (zero new dependencies)
+
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| node-pty | ^1.1.0 | PTY for interactive commands | Only option for proper PTY; make it optionalDependency |
+| Extended `NeshConfig` | existing code in config.ts | Add `plugins`, `profile`, `plugin_settings` to config | Extend `~/.nesh/config.json` with `{ plugins: ["git", "docker"], profile: "developer", plugin_settings: { git: { aliases: true } } }`. Same validated JSON config pattern already used. |
+| `.nesh.json` project overrides | existing code in config.ts | Per-project plugin activation | Already supports project config. Add `plugins` field so projects can activate project-specific plugins (e.g., `node` plugin only in Node.js projects). |
 
-### Dev (unchanged)
+### File Watching for Plugin Dev Mode (zero new dependencies)
+
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| tsdown | ^0.21.7 | Bundler | Existing |
-| tsx | ^4.21.0 | Dev runner | Existing |
-| vitest | ^4.1.2 | Tests | Existing |
+| `node:fs.watch` (recursive) | built-in (Node 22+) | Watch plugin source for hot-reload during development | Node 22+ supports `recursive: true` on macOS (FSEvents) and Linux (inotify). Sufficient for watching a single plugin directory during dev. Only activated via `nesh --dev-plugins` flag. |
+
+**Why not chokidar:** Chokidar v5 (Nov 2025) is ESM-only and adds ~1.5MB. For the narrow use case of watching a single plugin directory during development (not production), native `fs.watch` with recursive support on Node 22+ is sufficient. If edge cases arise, chokidar can be added later.
+
+## Stack Additions Summary
+
+| Category | New Dependencies | Rationale |
+|----------|-----------------|-----------|
+| Plugin loader | 0 | ESM `import()` + TypeScript interface contract |
+| Auto-suggestions | 0 | readline keypress events + ANSI escape codes |
+| Syntax highlighting | 1 (emphasize) | Grammar-based bash highlighting, direct ANSI output |
+| Tab completions | 0 | readline completer API + Fig-style TypeScript specs |
+| Git plugin install | 1 (simple-git) | Clone/update repos, progress callbacks, error handling |
+| Aliases/functions | 0 | Extended classify.ts + Map registries |
+| Configuration | 0 | Extended existing NeshConfig |
+| File watching (dev) | 0 | Node 22+ native fs.watch recursive |
+| **Total new deps** | **2** | **Minimal footprint, max capability** |
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Sessions | SDK built-in `continue`/`resume` | Custom conversation file storage | SDK handles all persistence, IDs, forking automatically |
-| PTY | node-pty (optional) | Raw child_process | child_process lacks PTY allocation; interactive programs break |
-| PTY | node-pty (optional) | pty.node | Abandoned 5 years ago |
-| Model selection | SDK `model` option | Separate Anthropic API calls | SDK handles model routing, fallback, and discovery |
-| Cost tracking | SDK ResultMessage fields | Manual token counting | SDK provides exact USD cost, per-model breakdown |
-| Permissions | SDK permission modes | Custom file-edit interceptor | SDK has 5 modes + allow/deny rules + runtime callback |
-| Pipe detection | process.stdin.isTTY (built-in) | is-interactive npm package | Built-in is sufficient, zero-dep |
-| Config merging | Object spread | cosmiconfig / rc | Overkill for simple JSON merge; keep zero-dep |
-| Project detection | fs.existsSync checks | detective / projector | Simple file existence checks; no AST parsing needed |
-| CLI arg parsing | Manual prefix parsing | commander / yargs | Only parsing `--haiku`/`--opus`/`--sonnet` flags; not worth a dep |
+| Plugin loader | Native ESM `import()` | tapable (webpack) | Massive overkill for init/destroy lifecycle. |
+| Plugin loader | Native ESM `import()` | architect (c9) | Server-oriented DI framework. Too heavy. |
+| Auto-suggestions | Custom readline | ink (React for CLI) | Replaces readline entirely. Full rewrite for marginal benefit. |
+| Auto-suggestions | Custom readline | prompts / enquirer | One-shot prompt libs, not persistent REPL shells. |
+| Syntax highlighting | emphasize | cli-highlight | HTML-to-ANSI intermediate step adds latency. |
+| Syntax highlighting | emphasize | Custom regex | Shell syntax too complex for regex correctness. |
+| Git operations | simple-git | isomorphic-git | 300KB+ pure JS git. Users have git installed. SSH auth issues. |
+| Git operations | simple-git | degit | No git history means no `git pull` for updates. |
+| Completion format | Fig-style specs | Custom format | Fig is the industry standard with 400+ existing specs. |
+| File watching | node:fs.watch | chokidar v5 | Unnecessary 1.5MB dep for Node 22+ recursive watch. |
+| Config validation | Manual checks | zod | Overkill for config objects. Existing pattern works. |
+
+## What NOT to Add
+
+| Technology | Why Not |
+|------------|---------|
+| **zod** | Config validation uses manual type checks (existing pattern in config.ts). Zod adds ~50KB for no benefit. |
+| **ink / blessed** | Would replace readline REPL. Auto-suggestions and highlighting layer on top of readline with ANSI. |
+| **yeoman / plop** | Plugin scaffolding is mkdir + writeFile. No generator framework needed. |
+| **semver** | Version constraints not needed for v3.0. Plugins work or they don't. |
+| **tar / decompress** | simple-git handles clone. No tarball extraction needed. |
+| **ora / cli-spinners** | Existing dim stderr status lines for progress. No spinner lib needed. |
+| **cosmiconfig** | Config resolution already handled by loadConfig/loadProjectConfig/mergeConfigs. |
+| **commander / yargs** | Plugin CLI subcommands are simple string splitting. No framework needed. |
 
 ## Installation
 
 ```bash
-# Core (unchanged from v1)
-npm install @anthropic-ai/claude-agent-sdk marked marked-terminal picocolors
+# New production dependencies (2 total)
+npm install emphasize simple-git
 
-# Optional: PTY support for interactive commands
-npm install node-pty  # Requires C++ toolchain (Xcode CLI on macOS, build-essential on Linux)
-
-# Dev dependencies (unchanged)
-npm install -D tsdown tsx typescript vitest @types/node
+# No new dev dependencies needed
 ```
 
-### package.json changes for v2
+## Integration Points with Existing Architecture
 
-```json
-{
-  "optionalDependencies": {
-    "node-pty": "^1.1.0"
-  }
-}
-```
+### classify.ts
+- Before returning `passthrough`, check function registry then alias registry
+- New action type: `{ type: 'plugin-function'; name: string; args: string }`
+- Alias expansion rewrites the command string and re-classifies
 
-## Key Insight
+### shell.ts
+- Plugin initialization after config load, before REPL loop starts
+- Plugin cleanup (`destroy()`) on shell exit
+- Pass aggregated completer function to `readline.createInterface({ completer })`
+- Keypress listener setup for auto-suggestions after readline interface creation
+- New `plugin-function` case in the action switch
 
-**9 of 10 v2 features require ZERO new dependencies.** The Claude Agent SDK already provides sessions, model selection, permissions, and cost tracking. Node.js built-ins handle pipe detection and project file scanning. The only new dependency is `node-pty` for interactive command support, and it should be optional to avoid installation friction.
+### config.ts
+- Extend `NeshConfig` with: `plugins?: string[]`, `profile?: string`, `plugin_settings?: Record<string, Record<string, unknown>>`
+- Extend `loadProjectConfig()` to read plugin overrides from `.nesh.json`
+
+### types.ts
+- New `NeshPlugin` interface (the core plugin contract)
+- New `PluginContext` interface (registries, config, shell state access)
+- New `CompletionSpec` types (Fig-compatible tree structure)
+- Extended `InputAction` union with `plugin-function` variant
+- Extended `BuiltinName` with `plugin` for management CLI
+
+### New source files (src/plugins/)
+- `src/plugins/loader.ts` -- discover, validate, import, init/destroy plugins
+- `src/plugins/registry.ts` -- alias, function, and completion registries (Maps)
+- `src/plugins/suggestions.ts` -- auto-suggestion engine (keypress + ghost text)
+- `src/plugins/highlighter.ts` -- syntax highlighting (emphasize integration)
+- `src/plugins/completions.ts` -- Fig-style spec resolver + readline completer
+- `src/plugins/installer.ts` -- git clone/update for external plugins (simple-git)
+- `src/plugins/profiles.ts` -- profile presets (developer, devops, cloud, ai-engineer)
+- `src/plugins/types.ts` -- NeshPlugin, PluginContext, CompletionSpec interfaces
+
+### Bundled plugin directories (src/plugins/builtins/)
+- One directory per ported oh-my-zsh plugin
+- Each exports a `NeshPlugin` conforming object
+- Compiled into dist/ as part of the build
 
 ## Sources
 
-- [Claude Agent SDK Sessions](https://platform.claude.com/docs/en/agent-sdk/sessions) -- session management (continue, resume, fork)
-- [Claude Agent SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript) -- Options type, Query object, ResultMessage, ModelUsage
-- [Claude Agent SDK Permissions](https://platform.claude.com/docs/en/agent-sdk/permissions) -- permission modes, allowedTools, disallowedTools
-- [Node.js TTY docs](https://nodejs.org/api/tty.html) -- isTTY for pipe detection
-- [node-pty GitHub](https://github.com/microsoft/node-pty) -- PTY for interactive commands
-- [Claude Agent SDK GitHub Issues](https://github.com/anthropics/claude-agent-sdk-typescript/issues/14) -- session history retrieval
+- [Node.js Readline API v25](https://nodejs.org/api/readline.html) -- completer function, keypress events, cursor position, Readline transaction APIs (HIGH confidence)
+- [Oh My Zsh Design Wiki](https://github.com/ohmyzsh/ohmyzsh/wiki/Design) -- plugin architecture: load order, naming conventions, no formal deps (HIGH confidence)
+- [Oh My Zsh Plugins Wiki](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins) -- full plugin listing for porting scope (HIGH confidence)
+- [Oh My Zsh Plugins Overview](https://github.com/ohmyzsh/ohmyzsh/wiki/plugins-overview) -- plugin categorization (HIGH confidence)
+- [emphasize (GitHub)](https://github.com/wooorm/emphasize) -- ANSI syntax highlighting, ESM, TS types (HIGH confidence)
+- [simple-git (npm)](https://www.npmjs.com/package/simple-git) -- git wrapper, 19M weekly downloads, ESM + TS since v3 (HIGH confidence)
+- [Fig Completion Spec Docs](https://fig.io/docs/getting-started/first-completion-spec) -- spec format standard (MEDIUM confidence)
+- [withfig/autocomplete (GitHub)](https://github.com/withfig/autocomplete) -- 400+ existing completion specs (MEDIUM confidence)
+- [isomorphic-git](https://isomorphic-git.org/) -- evaluated and rejected (HIGH confidence on rationale)
+- [chokidar v5 (GitHub)](https://github.com/paulmillr/chokidar) -- evaluated and rejected for Node 22+ (HIGH confidence on rationale)
+- [Plugin Architecture with TypeScript (dev.to)](https://dev.to/hexshift/designing-a-plugin-system-in-typescript-for-modular-web-applications-4db5) -- TS plugin patterns (LOW confidence)
