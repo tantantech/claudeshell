@@ -178,7 +178,7 @@ Plans:
 Plans:
 - [x] 09-01-PLAN.md — Completion types, TTL cache, compgen fallback, and Fig-style spec parser
 - [x] 09-02-PLAN.md — Completion engine dispatcher, plugin manifest extension, and shell.ts wiring
-- [ ] 09-03-PLAN.md — Top 20 command completion specs and utility plugin ports
+- [x] 09-03-PLAN.md — Top 20 command completion specs and utility plugin ports
 
 ### Phase 10: Auto-Suggestions & History Search
 **Goal**: Users see fish-like ghost text suggestions from history as they type, accepted with right-arrow

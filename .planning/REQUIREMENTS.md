@@ -31,7 +31,7 @@
 - [x] **COMP-02**: Completion providers are async with 1-second timeout and caching
 - [x] **COMP-03**: Fig-style declarative completion specs supported for command grammar definitions
 - [x] **COMP-04**: Fallback to bash/zsh `compgen` when no native completion is available
-- [ ] **COMP-05**: Top 20 commands have hand-crafted completions (git, docker, npm, kubectl, ssh, aws, etc.)
+- [x] **COMP-05**: Top 20 commands have hand-crafted completions (git, docker, npm, kubectl, ssh, aws, etc.)
 
 ### Auto-Suggestions
 
@@ -68,8 +68,8 @@
 
 - [ ] **PORT-01**: All ~300 oh-my-zsh plugins ported to TypeScript with matching user-facing behavior
 - [x] **PORT-02**: Alias-only plugins (~120) ported as pure data objects (no init function needed)
-- [ ] **PORT-03**: Completion-dependent plugins (~100) ported using Fig-style completion specs
-- [ ] **PORT-04**: Environment/utility plugins (~40) ported with cross-platform TypeScript implementations
+- [x] **PORT-03**: Completion-dependent plugins (~100) ported using Fig-style completion specs
+- [x] **PORT-04**: Environment/utility plugins (~40) ported with cross-platform TypeScript implementations
 - [ ] **PORT-05**: Hook/widget plugins (~30) ported using Nesh hook system and keypress API
 - [ ] **PORT-06**: Platform annotations in manifest for platform-specific plugins (brew=macOS, apt=Linux)
 
@@ -139,7 +139,7 @@
 | COMP-02 | Phase 9 | Complete |
 | COMP-03 | Phase 9 | Complete |
 | COMP-04 | Phase 9 | Complete |
-| COMP-05 | Phase 9 | Pending |
+| COMP-05 | Phase 9 | Complete |
 | SUGG-01 | Phase 10 | Pending |
 | SUGG-02 | Phase 10 | Pending |
 | SUGG-03 | Phase 10 | Pending |
@@ -161,8 +161,8 @@
 | PROF-04 | Phase 11 | Pending |
 | PORT-01 | Phase 12 | Pending |
 | PORT-02 | Phase 8 | Complete |
-| PORT-03 | Phase 9 | Pending |
-| PORT-04 | Phase 9 | Pending |
+| PORT-03 | Phase 9 | Complete |
+| PORT-04 | Phase 9 | Complete |
 | PORT-05 | Phase 12 | Pending |
 | PORT-06 | Phase 11 | Pending |
 | MIG-01 | Phase 12 | Pending |
