@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { buildRegistry, createEmptyRegistry } from '../../src/plugins/registry.js'
 import type { PluginManifest, PluginConfig } from '../../src/plugins/types.js'
+import type { CompletionProvider, CompletionSpec } from '../../src/completions/types.js'
 
 function makePlugin(overrides: Partial<PluginManifest> & { name: string }): PluginManifest {
   return {
@@ -122,6 +123,74 @@ describe('buildRegistry', () => {
     const empty = registry.getHooks('postCommand')
     expect(empty).toHaveLength(0)
   })
+
+  describe('completion provider lookup', () => {
+    it('getCompletionProvider returns provider registered by plugin name', () => {
+      const provider: CompletionProvider = async () => ({ items: ['commit', 'push'] })
+      const plugin = makePlugin({
+        name: 'git',
+        completions: provider,
+      })
+      const config: PluginConfig = {}
+      const registry = buildRegistry([plugin], config)
+
+      expect(registry.getCompletionProvider('git')).toBe(provider)
+    })
+
+    it('getCompletionProvider returns undefined for unknown command', () => {
+      const config: PluginConfig = {}
+      const registry = buildRegistry([], config)
+
+      expect(registry.getCompletionProvider('unknown')).toBeUndefined()
+    })
+
+    it('first plugin to register completions for a command wins', () => {
+      const providerA: CompletionProvider = async () => ({ items: ['a'] })
+      const providerB: CompletionProvider = async () => ({ items: ['b'] })
+      const pluginA = makePlugin({ name: 'git', completions: providerA })
+      const pluginB = makePlugin({ name: 'git-extra', completions: providerB })
+      // pluginB has a different name, so it won't collide on the same key
+      // The provider map is keyed by plugin.name
+      const config: PluginConfig = {}
+      const registry = buildRegistry([pluginA, pluginB], config)
+
+      expect(registry.getCompletionProvider('git')).toBe(providerA)
+    })
+  })
+
+  describe('completion spec lookup', () => {
+    it('getCompletionSpecs returns specs from plugin completionSpecs', () => {
+      const spec: CompletionSpec = { name: 'docker', subcommands: { run: { name: 'run' } } }
+      const plugin = makePlugin({
+        name: 'docker-completions',
+        completionSpecs: [spec],
+      })
+      const config: PluginConfig = {}
+      const registry = buildRegistry([plugin], config)
+
+      const result = registry.getCompletionSpecs('docker')
+      expect(result).toEqual([spec])
+    })
+
+    it('getCompletionSpecs returns undefined for unknown command', () => {
+      const config: PluginConfig = {}
+      const registry = buildRegistry([], config)
+
+      expect(registry.getCompletionSpecs('unknown')).toBeUndefined()
+    })
+
+    it('first plugin to register spec for a command name wins', () => {
+      const specA: CompletionSpec = { name: 'git', subcommands: { commit: { name: 'commit' } } }
+      const specB: CompletionSpec = { name: 'git', subcommands: { push: { name: 'push' } } }
+      const pluginA = makePlugin({ name: 'git-specs', completionSpecs: [specA] })
+      const pluginB = makePlugin({ name: 'git-extra-specs', completionSpecs: [specB] })
+      const config: PluginConfig = {}
+      const registry = buildRegistry([pluginA, pluginB], config)
+
+      const result = registry.getCompletionSpecs('git')
+      expect(result).toEqual([specA])
+    })
+  })
 })
 
 describe('createEmptyRegistry', () => {
@@ -145,5 +214,15 @@ describe('createEmptyRegistry', () => {
   it('getHooks returns empty array', () => {
     const registry = createEmptyRegistry()
     expect(registry.getHooks('preCommand')).toHaveLength(0)
+  })
+
+  it('getCompletionProvider returns undefined', () => {
+    const registry = createEmptyRegistry()
+    expect(registry.getCompletionProvider('anything')).toBeUndefined()
+  })
+
+  it('getCompletionSpecs returns undefined', () => {
+    const registry = createEmptyRegistry()
+    expect(registry.getCompletionSpecs('anything')).toBeUndefined()
   })
 })

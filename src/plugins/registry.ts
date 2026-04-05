@@ -6,6 +6,7 @@ import type {
   HookName,
   HookHandler,
 } from './types.js'
+import type { CompletionProvider, CompletionSpec } from '../completions/types.js'
 
 export interface AliasEntry {
   readonly expansion: string
@@ -22,6 +23,8 @@ export interface PluginRegistry {
   getAll(): ReadonlyMap<string, AliasEntry>
   getPlugins(): readonly PluginEntry[]
   getHooks(name: HookName): readonly HookHandler[]
+  getCompletionProvider(commandName: string): CompletionProvider | undefined
+  getCompletionSpecs(commandName: string): readonly CompletionSpec[] | undefined
 }
 
 export function buildRegistry(
@@ -31,6 +34,8 @@ export function buildRegistry(
   const aliasMap = new Map<string, AliasEntry>()
   const pluginEntries: PluginEntry[] = []
   const hookMap = new Map<HookName, HookHandler[]>()
+  const completionProviderMap = new Map<string, CompletionProvider>()
+  const completionSpecMap = new Map<string, CompletionSpec>()
 
   // Step 1: Insert user aliases first (source: 'user')
   const userAliases = config.aliases ?? {}
@@ -75,6 +80,20 @@ export function buildRegistry(
         hookMap.set(name, [...handlers, handler])
       }
     }
+
+    // Register completion provider (keyed by plugin name, first wins per D-11)
+    if (plugin.completions && !completionProviderMap.has(plugin.name)) {
+      completionProviderMap.set(plugin.name, plugin.completions)
+    }
+
+    // Register completion specs (keyed by spec.name, first wins per D-11)
+    if (plugin.completionSpecs) {
+      for (const spec of plugin.completionSpecs) {
+        if (!completionSpecMap.has(spec.name)) {
+          completionSpecMap.set(spec.name, spec)
+        }
+      }
+    }
   }
 
   const frozenAliasMap: ReadonlyMap<string, AliasEntry> = aliasMap
@@ -95,6 +114,15 @@ export function buildRegistry(
 
     getHooks(name: HookName): readonly HookHandler[] {
       return hookMap.get(name) ?? []
+    },
+
+    getCompletionProvider(commandName: string): CompletionProvider | undefined {
+      return completionProviderMap.get(commandName)
+    },
+
+    getCompletionSpecs(commandName: string): readonly CompletionSpec[] | undefined {
+      const spec = completionSpecMap.get(commandName)
+      return spec ? [spec] : undefined
     },
   }
 
@@ -121,6 +149,14 @@ export function createEmptyRegistry(): PluginRegistry {
 
     getHooks(): readonly HookHandler[] {
       return emptyHandlers
+    },
+
+    getCompletionProvider(): CompletionProvider | undefined {
+      return undefined
+    },
+
+    getCompletionSpecs(): readonly CompletionSpec[] | undefined {
+      return undefined
     },
   }
 
