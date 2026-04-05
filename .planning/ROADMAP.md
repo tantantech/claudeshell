@@ -161,7 +161,7 @@ Plans:
 Plans:
 - [x] 08-01-PLAN.md — Plugin type contracts, immutable registry, and alias expansion module
 - [x] 08-02-PLAN.md — Plugin loader, dependency resolver, hook dispatch, and git plugin
-- [ ] 08-03-PLAN.md — Shell integration: config, builtins, REPL wiring, safe mode, and human verification
+- [x] 08-03-PLAN.md — Shell integration: config, builtins, REPL wiring, safe mode, and human verification
 
 ### Phase 9: Completion Engine & Utility Plugins
 **Goal**: Users get context-aware Tab completions for common developer tools and can use utility plugins like extract, copypath, and sudo toggle

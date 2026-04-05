@@ -13,7 +13,7 @@
 - [x] **PLUG-04**: Plugin manifest declares metadata (name, version, description, dependencies, platform, permissions)
 - [x] **PLUG-05**: Plugin dependency resolution with topological sort and cycle detection
 - [x] **PLUG-06**: Shell startup with 30+ enabled plugins completes in under 300ms
-- [ ] **PLUG-07**: Safe mode (`nesh --safe`) starts with zero plugins for recovery
+- [x] **PLUG-07**: Safe mode (`nesh --safe`) starts with zero plugins for recovery
 - [x] **PLUG-08**: Plugin hook system dispatches REPL lifecycle events (preCommand, postCommand, prePrompt, onCd)
 
 ### Alias System
@@ -23,7 +23,7 @@
 - [x] **ALIAS-03**: User aliases always override plugin aliases
 - [x] **ALIAS-04**: Collision detection warns when multiple plugins define the same alias
 - [x] **ALIAS-05**: User can disable specific aliases per-plugin in config
-- [ ] **ALIAS-06**: `nesh aliases` command lists all aliases with their source plugin
+- [x] **ALIAS-06**: `nesh aliases` command lists all aliases with their source plugin
 
 ### Completion Engine
 
@@ -127,14 +127,14 @@
 | PLUG-04 | Phase 8 | Complete |
 | PLUG-05 | Phase 8 | Complete |
 | PLUG-06 | Phase 8 | Complete |
-| PLUG-07 | Phase 8 | Pending |
+| PLUG-07 | Phase 8 | Complete |
 | PLUG-08 | Phase 8 | Complete |
 | ALIAS-01 | Phase 8 | Complete |
 | ALIAS-02 | Phase 8 | Complete |
 | ALIAS-03 | Phase 8 | Complete |
 | ALIAS-04 | Phase 8 | Complete |
 | ALIAS-05 | Phase 8 | Complete |
-| ALIAS-06 | Phase 8 | Pending |
+| ALIAS-06 | Phase 8 | Complete |
 | COMP-01 | Phase 9 | Pending |
 | COMP-02 | Phase 9 | Pending |
 | COMP-03 | Phase 9 | Pending |
