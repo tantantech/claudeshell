@@ -156,7 +156,12 @@ Plans:
   3. A crashing plugin never crashes the shell -- user sees a warning and continues working; `nesh --safe` starts with zero plugins for recovery
   4. User aliases in config always override plugin aliases; when two plugins define the same alias, user sees a collision warning
   5. User can run `nesh aliases` to see all active aliases grouped by source plugin, and can disable specific aliases per-plugin in config
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Plugin type contracts, immutable registry, and alias expansion module
+- [ ] 08-02-PLAN.md — Plugin loader, dependency resolver, hook dispatch, and git plugin
+- [ ] 08-03-PLAN.md — Shell integration: config, builtins, REPL wiring, safe mode, and human verification
 
 ### Phase 9: Completion Engine & Utility Plugins
 **Goal**: Users get context-aware Tab completions for common developer tools and can use utility plugins like extract, copypath, and sudo toggle
@@ -219,7 +224,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 5. Pipe & Unix Integration | v2.0 | 3/3 | Complete | - |
 | 6. Context & Permissions | v2.0 | 3/3 | Complete | - |
 | 7. PTY & Polish | v2.0 | 2/2 | Complete | 2026-04-02 |
-| 8. Plugin Engine & Alias System | v3.0 | 0/? | Not started | - |
+| 8. Plugin Engine & Alias System | v3.0 | 0/3 | Planned | - |
 | 9. Completion Engine & Utility Plugins | v3.0 | 0/? | Not started | - |
 | 10. Auto-Suggestions & History Search | v3.0 | 0/? | Not started | - |
 | 11. Syntax Highlighting, Profiles & Plugin Management | v3.0 | 0/? | Not started | - |
