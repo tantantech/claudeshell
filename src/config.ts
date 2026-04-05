@@ -32,6 +32,13 @@ export interface NeshConfig {
   readonly prompt_flow?: 'concise' | 'fluent'
   readonly prompt_transient?: boolean
   readonly prompt_time_format?: 'none' | '12h' | '24h'
+  readonly suggestions?: SuggestionsConfig
+}
+
+export interface SuggestionsConfig {
+  readonly enabled?: boolean
+  readonly debounce_ms?: number
+  readonly sensitive_patterns?: readonly string[]
 }
 
 const VALID_PERMISSIONS = ['auto', 'ask', 'deny'] as const
@@ -84,6 +91,16 @@ export function validatePluginConfig(obj: Record<string, unknown>): PluginConfig
   return result as PluginConfig
 }
 
+export function validateSuggestionsConfig(obj: Record<string, unknown>): SuggestionsConfig {
+  return {
+    ...(typeof obj.enabled === 'boolean' ? { enabled: obj.enabled } : {}),
+    ...(typeof obj.debounce_ms === 'number' ? { debounce_ms: obj.debounce_ms } : {}),
+    ...(Array.isArray(obj.sensitive_patterns) && obj.sensitive_patterns.every((x: unknown) => typeof x === 'string')
+      ? { sensitive_patterns: obj.sensitive_patterns as readonly string[] }
+      : {}),
+  }
+}
+
 export function loadConfig(): NeshConfig {
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
@@ -116,6 +133,9 @@ export function loadConfig(): NeshConfig {
       ...(typeof obj.prompt_flow === 'string' && ['concise', 'fluent'].includes(obj.prompt_flow) ? { prompt_flow: obj.prompt_flow as 'concise' | 'fluent' } : {}),
       ...(typeof obj.prompt_transient === 'boolean' ? { prompt_transient: obj.prompt_transient } : {}),
       ...(typeof obj.prompt_time_format === 'string' && ['none', '12h', '24h'].includes(obj.prompt_time_format) ? { prompt_time_format: obj.prompt_time_format as 'none' | '12h' | '24h' } : {}),
+      ...(typeof obj.suggestions === 'object' && obj.suggestions !== null
+        ? { suggestions: validateSuggestionsConfig(obj.suggestions as Record<string, unknown>) }
+        : {}),
     }
 
     return config
