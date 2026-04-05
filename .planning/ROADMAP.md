@@ -160,7 +160,7 @@ Plans:
 
 Plans:
 - [x] 08-01-PLAN.md — Plugin type contracts, immutable registry, and alias expansion module
-- [ ] 08-02-PLAN.md — Plugin loader, dependency resolver, hook dispatch, and git plugin
+- [x] 08-02-PLAN.md — Plugin loader, dependency resolver, hook dispatch, and git plugin
 - [ ] 08-03-PLAN.md — Shell integration: config, builtins, REPL wiring, safe mode, and human verification
 
 ### Phase 9: Completion Engine & Utility Plugins

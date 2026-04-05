@@ -7,14 +7,14 @@
 
 ### Plugin Framework
 
-- [ ] **PLUG-01**: Plugin loader initializes enabled plugins at shell startup with two-phase loading (sync alias data <50ms, async init deferred after first prompt)
+- [x] **PLUG-01**: Plugin loader initializes enabled plugins at shell startup with two-phase loading (sync alias data <50ms, async init deferred after first prompt)
 - [x] **PLUG-02**: Plugin registry provides O(1) lookup for aliases, completions, hooks, and commands
-- [ ] **PLUG-03**: Every plugin lifecycle call (init, destroy) runs inside error boundaries — a crashing plugin never crashes the shell
+- [x] **PLUG-03**: Every plugin lifecycle call (init, destroy) runs inside error boundaries — a crashing plugin never crashes the shell
 - [x] **PLUG-04**: Plugin manifest declares metadata (name, version, description, dependencies, platform, permissions)
-- [ ] **PLUG-05**: Plugin dependency resolution with topological sort and cycle detection
-- [ ] **PLUG-06**: Shell startup with 30+ enabled plugins completes in under 300ms
+- [x] **PLUG-05**: Plugin dependency resolution with topological sort and cycle detection
+- [x] **PLUG-06**: Shell startup with 30+ enabled plugins completes in under 300ms
 - [ ] **PLUG-07**: Safe mode (`nesh --safe`) starts with zero plugins for recovery
-- [ ] **PLUG-08**: Plugin hook system dispatches REPL lifecycle events (preCommand, postCommand, prePrompt, onCd)
+- [x] **PLUG-08**: Plugin hook system dispatches REPL lifecycle events (preCommand, postCommand, prePrompt, onCd)
 
 ### Alias System
 
@@ -67,7 +67,7 @@
 ### Plugin Catalog (OMZ Port)
 
 - [ ] **PORT-01**: All ~300 oh-my-zsh plugins ported to TypeScript with matching user-facing behavior
-- [ ] **PORT-02**: Alias-only plugins (~120) ported as pure data objects (no init function needed)
+- [x] **PORT-02**: Alias-only plugins (~120) ported as pure data objects (no init function needed)
 - [ ] **PORT-03**: Completion-dependent plugins (~100) ported using Fig-style completion specs
 - [ ] **PORT-04**: Environment/utility plugins (~40) ported with cross-platform TypeScript implementations
 - [ ] **PORT-05**: Hook/widget plugins (~30) ported using Nesh hook system and keypress API
@@ -121,14 +121,14 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | Phase 8 | Pending |
+| PLUG-01 | Phase 8 | Complete |
 | PLUG-02 | Phase 8 | Complete |
-| PLUG-03 | Phase 8 | Pending |
+| PLUG-03 | Phase 8 | Complete |
 | PLUG-04 | Phase 8 | Complete |
-| PLUG-05 | Phase 8 | Pending |
-| PLUG-06 | Phase 8 | Pending |
+| PLUG-05 | Phase 8 | Complete |
+| PLUG-06 | Phase 8 | Complete |
 | PLUG-07 | Phase 8 | Pending |
-| PLUG-08 | Phase 8 | Pending |
+| PLUG-08 | Phase 8 | Complete |
 | ALIAS-01 | Phase 8 | Complete |
 | ALIAS-02 | Phase 8 | Complete |
 | ALIAS-03 | Phase 8 | Complete |
@@ -160,7 +160,7 @@
 | PROF-03 | Phase 11 | Pending |
 | PROF-04 | Phase 11 | Pending |
 | PORT-01 | Phase 12 | Pending |
-| PORT-02 | Phase 8 | Pending |
+| PORT-02 | Phase 8 | Complete |
 | PORT-03 | Phase 9 | Pending |
 | PORT-04 | Phase 9 | Pending |
 | PORT-05 | Phase 12 | Pending |
