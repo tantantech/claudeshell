@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/nesh"><img src="https://img.shields.io/npm/v/nesh?style=flat-square&color=00ff41&labelColor=0a0f0d&label=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/nesh"><img src="https://img.shields.io/npm/v/nesh?style=flat-square&color=00ff41&labelColor=0a0f0d&label=npm%20v3" alt="npm version" /></a>
   <a href="https://github.com/tantantech/nesh/actions"><img src="https://img.shields.io/github/actions/workflow/status/tantantech/nesh/release.yml?style=flat-square&label=build&labelColor=0a0f0d" alt="build" /></a>
   <a href="https://nesh.sh"><img src="https://img.shields.io/badge/docs-nesh.sh-00ff41?style=flat-square&labelColor=0a0f0d" alt="docs" /></a>
   <a href="https://github.com/tantantech/nesh/blob/main/LICENSE"><img src="https://img.shields.io/github/license/tantantech/nesh?style=flat-square&labelColor=0a0f0d&color=6ee7b7" alt="license" /></a>
@@ -158,6 +158,112 @@ $ model                                    # Interactive model picker
 
 ---
 
+## Oh-My-Nesh Plugin Ecosystem
+
+277 plugins. 5 curated profiles. Hot-reload. Everything you loved about Oh-My-Zsh, rebuilt for an AI-native shell.
+
+### Alias Expansion
+
+Type less. Do more.
+
+```
+$ gst                  # expands to: git status
+$ gco main             # expands to: git checkout main
+$ dps                  # expands to: docker ps
+$ k get pods           # expands to: kubectl get pods
+```
+
+Aliases load from your active profile and any enabled plugins. Add your own in config.
+
+### Tab Completion
+
+Context-aware completions for 20+ commands with hand-crafted completion specs.
+
+```
+$ git <TAB>
+  add       branch    checkout  commit    diff
+  fetch     log       merge     pull      push
+  rebase    reset     stash     status    tag
+
+$ docker <TAB>
+  build     compose   exec      images    logs
+  ps        pull      push      rm        run
+```
+
+Completions are aware of your current context — branches, container names, running services.
+
+### Auto-Suggestions
+
+Fish-like ghost text from your history. Accept with right arrow.
+
+```
+$ git status▌                 # you type
+$ git status --short          # ghost text from history, press → to accept
+```
+
+### Syntax Highlighting
+
+Real-time colored input as you type. Valid commands in green, unknown commands in red, flags in blue.
+
+```
+$ git status --short          # green: known command
+$ gti status                  # red: typo detected before you even run it
+$ docker run -it --rm alpine  # flags highlighted as you type
+```
+
+### Plugin Management CLI
+
+```
+$ plugin list                          # list all installed plugins
+$ plugin enable git                    # enable a plugin
+$ plugin disable docker-completions    # disable a plugin
+$ plugin install kubectl               # install from registry
+$ plugin search kubernetes             # search the plugin registry
+$ plugin doctor                        # check for conflicts and issues
+```
+
+### Plugin Profiles
+
+Start with a profile that matches your work.
+
+| Profile | Included Plugins |
+|---------|-----------------|
+| `core` | git, history, aliases |
+| `developer` | core + node, python, docker-completions |
+| `devops` | developer + kubectl, terraform, aws |
+| `cloud` | devops + gcloud, azure, helm |
+| `ai-engineer` | developer + huggingface, openai-cli, jupyter |
+
+```
+$ plugin profile developer    # switch to developer profile
+```
+
+### Oh-My-Zsh Migration
+
+Already have Oh-My-Zsh set up? Import your config in one command.
+
+```
+$ nesh --migrate              # auto-detect and import .zshrc aliases and plugins
+$ plugin migrate              # same, run from inside nesh
+```
+
+Nesh reads your existing aliases, identifies matching plugins, and enables them automatically.
+
+### AI-Enhanced Discovery
+
+Not sure which plugins you need? Describe your work.
+
+```
+$ plugin discover "I work with kubernetes and deploy to AWS"
+  Suggested plugins:
+    kubectl         - tab completion and aliases for kubectl
+    helm            - helm chart management
+    aws             - AWS CLI completions and profile switching
+    terraform       - infrastructure as code shortcuts
+```
+
+---
+
 ## 5 Prompt Themes
 
 ```
@@ -211,7 +317,13 @@ Config file at `~/.nesh/config.json`:
   "model": "claude-sonnet",
   "history_size": 1000,
   "prefix": "a",
-  "permissions": "auto"
+  "permissions": "auto",
+  "plugins": {
+    "enabled": ["git", "docker-completions", "extract"],
+    "aliases": { "gs": "git status" }
+  },
+  "suggestions": { "enabled": true },
+  "highlighting": { "enabled": true }
 }
 ```
 
@@ -221,6 +333,10 @@ Config file at `~/.nesh/config.json`:
 | `history_size` | `1000` | Max command history entries |
 | `prefix` | `a` | AI trigger prefix (customizable) |
 | `permissions` | `auto` | Tool permissions: `auto`, `ask`, or `deny` |
+| `plugins.enabled` | `[]` | List of active plugins |
+| `plugins.aliases` | `{}` | Custom alias definitions |
+| `suggestions.enabled` | `true` | Fish-like history auto-suggestions |
+| `highlighting.enabled` | `true` | Real-time syntax highlighting |
 
 ### Per-Project Config
 
@@ -245,16 +361,24 @@ $ keys remove openai   # Remove a provider key
 
 ## Clean, auditable, minimal
 
-18 modules. ~1,750 lines of TypeScript. Every module has a single responsibility.
+40+ modules. ~5,000+ lines of TypeScript. Every module has a single responsibility.
 
 ```
 cli.ts ──▸ shell.ts ──▸ classify.ts ─┬─▸ builtins.ts
-                                     │
-                                     ├─▸ passthrough.ts
-                                     │
-                                     └─▸ ai.ts
-                                          │
-                                          └─▸ renderer.ts
+            │                         │
+            │                         ├─▸ passthrough.ts
+            │                         │
+            │                         └─▸ ai.ts
+            │                               │
+            │                               └─▸ renderer.ts
+            │
+            ├─▸ plugins/loader.ts ──▸ plugins/registry.ts
+            │                     ──▸ plugins/hooks.ts
+            │
+            ├─▸ alias.ts               (expand before classify)
+            ├─▸ completions/engine.ts
+            ├─▸ suggestions/index.ts
+            └─▸ highlighting/renderer.ts
 ```
 
 `Node.js 22+` · `TypeScript 6` · `Claude Agent SDK` · `ESM` · `Vitest` · `tsdown`
