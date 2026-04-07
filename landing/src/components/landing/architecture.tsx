@@ -19,6 +19,14 @@ const modules = [
   { name: "pipe.ts", desc: "Pipe mode", color: "bg-teal-500/10 border-teal-500/20" },
   { name: "interactive.ts", desc: "Interactive cmds", color: "bg-teal-500/10 border-teal-500/20" },
   { name: "types.ts", desc: "Type definitions", color: "bg-teal-500/10 border-teal-500/20" },
+  { name: "alias.ts", desc: "Alias expansion", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "plugins/", desc: "Plugin engine", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "completions/", desc: "Tab completion", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "suggestions/", desc: "Auto-suggest", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "highlighting/", desc: "Syntax color", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "migration/", desc: "OMZ migration", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "plugin-manager.ts", desc: "Plugin CLI", color: "bg-violet-500/15 border-violet-500/25" },
+  { name: "segment-registry.ts", desc: "Prompt segments", color: "bg-violet-500/15 border-violet-500/25" },
 ];
 
 export function Architecture() {
@@ -35,7 +43,7 @@ export function Architecture() {
             <span className="text-primary text-glow">minimal</span>
           </h2>
           <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
-            18 modules. ~1750 lines. Every module has a single responsibility.
+            40+ modules. 5000+ lines. Plugin-powered architecture.
           </p>
         </div>
 
@@ -44,13 +52,13 @@ export function Architecture() {
           <div className="relative rounded-2xl border border-border bg-card glass p-8 scanlines">
             {/* ASCII-art flow */}
             <pre className="font-mono text-xs sm:text-sm text-muted-foreground leading-loose overflow-x-auto">
-              <code>{`  cli.ts \u2500\u2500\u25b8 shell.ts \u2500\u2500\u25b8 classify.ts \u2500\u252c\u2500\u25b8 builtins.ts
-                                  \u2502
-                                  \u251c\u2500\u25b8 passthrough.ts
-                                  \u2502
-                                  \u2514\u2500\u25b8 ai.ts
-                                       \u2502
-                                       \u2514\u2500\u25b8 renderer.ts`}</code>
+              <code>{`  cli.ts \u2500\u2500\u25b8 shell.ts \u2500\u2500\u25b8 alias.ts \u2500\u2500\u25b8 classify.ts \u2500\u252c\u2500\u25b8 builtins.ts
+                \u2502                                  \u251c\u2500\u25b8 passthrough.ts
+                \u2502                                  \u2514\u2500\u25b8 ai.ts \u2192 renderer.ts
+                \u251c\u2500\u25b8 plugins/loader.ts \u2500\u2500\u25b8 plugins/registry.ts
+                \u251c\u2500\u25b8 completions/engine.ts
+                \u251c\u2500\u25b8 suggestions/index.ts
+                \u2514\u2500\u25b8 highlighting/renderer.ts`}</code>
             </pre>
 
             {/* Module grid */}

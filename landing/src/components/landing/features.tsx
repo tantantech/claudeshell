@@ -16,6 +16,12 @@ import {
   Settings,
   DollarSign,
   Cpu,
+  Puzzle,
+  SquareTerminal,
+  Type,
+  Paintbrush,
+  Users,
+  Package,
 } from "lucide-react";
 
 const features = [
@@ -102,6 +108,48 @@ const features = [
     description:
       "Agent SDK lazy-loaded on first AI command. Shell is instant \u2014 no waiting for model initialization.",
     accent: "from-emerald-500/20 to-teal-500/20",
+  },
+  {
+    icon: Puzzle,
+    title: "Plugin Ecosystem",
+    description:
+      "277 plugins ported from oh-my-zsh. Enable with one command. Type `gst` instead of `git status`.",
+    accent: "from-violet-500/20 to-purple-500/20",
+  },
+  {
+    icon: SquareTerminal,
+    title: "Tab Completions",
+    description:
+      "Context-aware completions for 20+ commands. Press Tab after `git ch` for branch-aware suggestions.",
+    accent: "from-purple-500/20 to-violet-500/20",
+  },
+  {
+    icon: Type,
+    title: "Auto-Suggestions",
+    description:
+      "Fish-like ghost text from history. See dim suggestions as you type, accept with right-arrow.",
+    accent: "from-violet-500/20 to-indigo-500/20",
+  },
+  {
+    icon: Paintbrush,
+    title: "Syntax Highlighting",
+    description:
+      "Real-time colored input. Commands green, strings yellow, flags cyan. Output-only \u2014 never corrupts your typing.",
+    accent: "from-indigo-500/20 to-violet-500/20",
+  },
+  {
+    icon: Users,
+    title: "Plugin Profiles",
+    description:
+      "Pick core, developer, devops, cloud, or ai-engineer. One selection configures dozens of plugins.",
+    accent: "from-violet-500/20 to-purple-500/20",
+  },
+  {
+    icon: Package,
+    title: "Plugin Manager",
+    description:
+      "Install from git, enable/disable, hot-reload. `plugin doctor` diagnoses issues. No restart needed.",
+    accent: "from-purple-500/20 to-violet-500/20",
   },
 ];
 

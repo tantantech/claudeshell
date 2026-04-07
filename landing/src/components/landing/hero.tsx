@@ -26,7 +26,7 @@ export function Hero() {
           className="px-3.5 py-1 font-mono text-[11px] border border-primary/15 bg-primary/5 text-primary/80 gap-2 rounded-full"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-pulse" />
-          v0.2.0 &mdash; AI-native shell
+          v3.0 &mdash; Oh-My-Nesh
         </Badge>
 
         {/* Main heading */}
@@ -77,17 +77,17 @@ export function Hero() {
         {/* Stats */}
         <div className="flex items-center gap-6 pt-6 text-sm text-muted-foreground/60">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono font-bold text-foreground/80">18</span>
+            <span className="font-mono font-bold text-foreground/80">40+</span>
             <span>modules</span>
           </div>
           <div className="w-px h-3.5 bg-border/50" />
           <div className="flex items-center gap-1.5">
-            <span className="font-mono font-bold text-foreground/80">~1750</span>
+            <span className="font-mono font-bold text-foreground/80">5000+</span>
             <span>lines</span>
           </div>
           <div className="w-px h-3.5 bg-border/50" />
           <div className="flex items-center gap-1.5">
-            <span className="font-mono font-bold text-foreground/80">225</span>
+            <span className="font-mono font-bold text-foreground/80">628</span>
             <span>tests</span>
           </div>
         </div>
