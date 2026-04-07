@@ -210,6 +210,24 @@ export async function executeAI(
     return executeProviderAI(prompt, options, modelInfo)
   }
 
+  // If model string is set but not recognized, check if it matches a provider name
+  // (e.g., user set "minimax" in config instead of "minimax-m2.7")
+  if (options.model && !modelInfo) {
+    const { PROVIDER_CONFIGS } = await import('./providers/registry.js')
+    if (PROVIDER_CONFIGS[options.model] && options.model !== 'claude') {
+      // Find the first model for this provider
+      const { MODEL_REGISTRY } = await import('./providers/registry.js')
+      const firstMatch = Object.values(MODEL_REGISTRY).find(e => e.provider === options.model)
+      if (firstMatch) {
+        return executeProviderAI(prompt, options, {
+          providerName: options.model,
+          modelId: firstMatch.model,
+          displayName: firstMatch.displayName,
+        })
+      }
+    }
+  }
+
   const config = loadConfig()
   const apiKey = resolveApiKey(config)
   if (!apiKey) {
