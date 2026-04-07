@@ -26,7 +26,7 @@ export const PROVIDER_CONFIGS: Readonly<Record<string, ProviderConfig>> = {
   deepseek:   { name: 'deepseek',   displayName: 'DeepSeek',        baseURL: 'https://api.deepseek.com',                apiKeyEnv: 'DEEPSEEK_API_KEY',      type: 'openai-compatible' },
   mistral:    { name: 'mistral',    displayName: 'Mistral',         baseURL: 'https://api.mistral.ai/v1',               apiKeyEnv: 'MISTRAL_API_KEY',       type: 'openai-compatible' },
   cohere:     { name: 'cohere',     displayName: 'Cohere',          baseURL: 'https://api.cohere.com/v2',               apiKeyEnv: 'COHERE_API_KEY',        type: 'openai-compatible' },
-  minimax:    { name: 'minimax',    displayName: 'MiniMax',         baseURL: 'https://api.minimax.chat/v1',             apiKeyEnv: 'MINIMAX_API_KEY',       type: 'openai-compatible' },
+  minimax:    { name: 'minimax',    displayName: 'MiniMax',         baseURL: 'https://api.minimaxi.chat/v1',            apiKeyEnv: 'MINIMAX_API_KEY',       type: 'openai-compatible' },
   // Tier 3: Fast Inference / Open-Source Hosts
   groq:       { name: 'groq',       displayName: 'Groq',            baseURL: 'https://api.groq.com/openai/v1',          apiKeyEnv: 'GROQ_API_KEY',          type: 'openai-compatible' },
   together:   { name: 'together',   displayName: 'Together AI',     baseURL: 'https://api.together.xyz/v1',             apiKeyEnv: 'TOGETHER_API_KEY',      type: 'openai-compatible' },
