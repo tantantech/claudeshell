@@ -108,10 +108,12 @@ export function getClock(format: 'none' | '12h' | '24h' = '24h'): string | undef
     const h = now.getHours()
     const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h
     const ampm = h < 12 ? 'AM' : 'PM'
-    return `${hour12}:${minutes} ${ampm}`
+    const seconds = String(now.getSeconds()).padStart(2, '0')
+    return `${hour12}:${minutes}:${seconds} ${ampm}`
   }
   const hours = String(now.getHours()).padStart(2, '0')
-  return `${hours}:${minutes}`
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
 }
 
 export function getNodeVersion(): string {
