@@ -103,13 +103,30 @@ export interface ColorScheme {
 }
 
 export const COLOR_SCHEMES: readonly ColorScheme[] = [
+  // Nesh originals
   { name: 'default', label: 'Default', description: 'Orange powerline (nesh signature)', primary: 208, primaryDark: 166, accent: 75, git: 114, info: 245, error: 203, promptChar: '\u276F' },
   { name: 'ocean', label: 'Ocean', description: 'Cool blues and teals', primary: 33, primaryDark: 25, accent: 81, git: 114, info: 245, error: 203, promptChar: '\u276F' },
   { name: 'forest', label: 'Forest', description: 'Deep greens and earthy tones', primary: 34, primaryDark: 28, accent: 150, git: 114, info: 245, error: 167, promptChar: '\u276F' },
   { name: 'sunset', label: 'Sunset', description: 'Warm reds, oranges, and purples', primary: 196, primaryDark: 161, accent: 213, git: 221, info: 245, error: 203, promptChar: '\u276F' },
   { name: 'mono', label: 'Mono', description: 'Elegant grayscale', primary: 250, primaryDark: 240, accent: 255, git: 248, info: 245, error: 203, promptChar: '\u276F' },
-  { name: 'nord', label: 'Nord', description: 'Arctic blue palette inspired by Nord theme', primary: 67, primaryDark: 60, accent: 110, git: 108, info: 245, error: 174, promptChar: '\u276F' },
+  // P10k-inspired palettes
+  { name: 'p10k-rainbow', label: 'P10k Rainbow', description: 'Classic p10k multi-color powerline', primary: 31, primaryDark: 24, accent: 75, git: 76, info: 244, error: 196, promptChar: '\u276F' },
+  { name: 'p10k-lean', label: 'P10k Lean', description: 'Clean p10k with muted tones', primary: 39, primaryDark: 31, accent: 45, git: 76, info: 244, error: 160, promptChar: '\u276F' },
+  { name: 'p10k-classic', label: 'P10k Classic', description: 'Traditional p10k dark segments', primary: 31, primaryDark: 236, accent: 39, git: 148, info: 242, error: 196, promptChar: '\u276F' },
+  { name: 'p10k-pure', label: 'P10k Pure', description: 'Minimal p10k with subtle colors', primary: 243, primaryDark: 238, accent: 110, git: 76, info: 244, error: 203, promptChar: '\u276D' },
+  // Editor-inspired themes
+  { name: 'nord', label: 'Nord', description: 'Arctic blue palette inspired by Nord', primary: 67, primaryDark: 60, accent: 110, git: 108, info: 245, error: 174, promptChar: '\u276F' },
   { name: 'dracula', label: 'Dracula', description: 'Dark purple theme inspired by Dracula', primary: 141, primaryDark: 98, accent: 212, git: 84, info: 245, error: 203, promptChar: '\u276F' },
+  { name: 'gruvbox', label: 'Gruvbox', description: 'Warm retro palette with earthy browns', primary: 214, primaryDark: 172, accent: 142, git: 108, info: 246, error: 167, promptChar: '\u276F' },
+  { name: 'solarized', label: 'Solarized', description: 'Balanced blue-yellow by Ethan Schoonover', primary: 33, primaryDark: 24, accent: 136, git: 64, info: 244, error: 160, promptChar: '\u276F' },
+  { name: 'catppuccin', label: 'Catppuccin', description: 'Soothing pastel palette (Mocha)', primary: 183, primaryDark: 140, accent: 117, git: 115, info: 245, error: 210, promptChar: '\u276F' },
+  { name: 'tokyo-night', label: 'Tokyo Night', description: 'Vibrant neon on dark background', primary: 111, primaryDark: 61, accent: 176, git: 115, info: 245, error: 203, promptChar: '\u276F' },
+  { name: 'one-dark', label: 'One Dark', description: 'Atom One Dark inspired palette', primary: 39, primaryDark: 24, accent: 204, git: 114, info: 245, error: 204, promptChar: '\u276F' },
+  // Vibrant & creative
+  { name: 'cyberpunk', label: 'Cyberpunk', description: 'Neon pink and electric cyan', primary: 199, primaryDark: 162, accent: 51, git: 46, info: 245, error: 196, promptChar: '\u276F' },
+  { name: 'aurora', label: 'Aurora', description: 'Northern lights green and purple', primary: 48, primaryDark: 35, accent: 183, git: 84, info: 245, error: 203, promptChar: '\u276F' },
+  { name: 'rose-pine', label: 'Rose Pine', description: 'Soft rose and pine tones', primary: 175, primaryDark: 132, accent: 146, git: 108, info: 245, error: 174, promptChar: '\u276F' },
+  { name: 'kanagawa', label: 'Kanagawa', description: 'Japanese wave art blue and gold', primary: 67, primaryDark: 24, accent: 222, git: 108, info: 244, error: 167, promptChar: '\u276F' },
 ]
 
 export const DEFAULT_COLOR_SCHEME = 'default'
