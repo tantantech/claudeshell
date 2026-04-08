@@ -19,8 +19,8 @@ interface RenderConfig {
   readonly config: NeshConfig
 }
 
-function loadRenderConfig(): RenderConfig {
-  const config = loadConfig()
+function loadRenderConfig(overrideConfig?: NeshConfig): RenderConfig {
+  const config = overrideConfig ?? loadConfig()
   return {
     scheme: getColorSchemeByName(config.prompt_color_scheme ?? 'default'),
     mode: config.prompt_icon_mode ?? 'unicode',
@@ -49,7 +49,7 @@ export interface PromptTemplate {
   readonly requiresNerdFont: boolean
 }
 
-type PromptBuilder = (cwd: string, homedir: string) => string
+type PromptBuilder = (cwd: string, homedir: string, overrideConfig?: NeshConfig) => string
 
 const WHITE = 15
 const GRAY = 240
@@ -88,8 +88,8 @@ function applyHeight(mainLine: string, promptChar: string, rc: RenderConfig): st
 }
 
 const builders: Record<string, PromptBuilder> = {
-  minimal(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  minimal(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
     const branchPart = branch ? ` ${DIM}(${branch})${RESET}` : ''
@@ -99,8 +99,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, '>', rc)
   },
 
-  classic(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  classic(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -114,8 +114,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, `${fg(s.accent)}\u2500\u25B8${RESET}`, rc)
   },
 
-  powerline(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  powerline(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -146,8 +146,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(result, `${fg(s.primary)}${s.promptChar}${RESET}`, rc)
   },
 
-  hacker(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  hacker(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -163,8 +163,8 @@ const builders: Record<string, PromptBuilder> = {
     return `${prefix}${g}\u250C\u2500[${RESET}nesh${g}]\u2500[${RESET}${dirLabel}${g}]${branchPart}${timePart}${RESET}\n${g}\u2514\u2500\u2500\u257C${RESET} `
   },
 
-  pastel(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  pastel(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -178,8 +178,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, `${fg(s.primary)}${s.promptChar}${RESET}`, rc)
   },
 
-  rainbow(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  rainbow(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -224,8 +224,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, `${fg(s.primary)}${s.promptChar}${RESET}`, rc)
   },
 
-  lean(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  lean(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -271,8 +271,8 @@ const builders: Record<string, PromptBuilder> = {
     return `${prefix}${line1}\n${fg(s.accent)}${s.promptChar}${RESET} `
   },
 
-  'classic-p10k'(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  'classic-p10k'(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -315,8 +315,8 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, `${fg(s.accent)}${s.promptChar}${RESET}`, rc)
   },
 
-  pure(cwd: string, homedir: string): string {
-    const rc = loadRenderConfig()
+  pure(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
     const display = abbreviatePath(cwd, homedir)
     const branch = getGitBranch()
@@ -362,10 +362,10 @@ export function getTemplateByName(name: string): PromptTemplate | undefined {
   return TEMPLATES.find((t) => t.name === name)
 }
 
-export function buildPromptFromTemplate(template: PromptTemplate, cwd: string, homedir: string): string {
+export function buildPromptFromTemplate(template: PromptTemplate, cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
   const builder = builders[template.name]
   if (!builder) {
-    return interpolateSegments(builders.minimal(cwd, homedir))
+    return interpolateSegments(builders.minimal(cwd, homedir, overrideConfig))
   }
-  return interpolateSegments(builder(cwd, homedir))
+  return interpolateSegments(builder(cwd, homedir, overrideConfig))
 }

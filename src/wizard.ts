@@ -2,6 +2,7 @@ import * as readline from 'node:readline/promises'
 import * as os from 'node:os'
 import pc from 'picocolors'
 import { loadConfig, saveConfig } from './config.js'
+import type { NeshConfig } from './config.js'
 import {
   SEPARATOR_STYLES,
   HEAD_STYLES,
@@ -80,6 +81,35 @@ function renderSeparatorPreview(sep: SeparatorSet, label: string): string {
 
 function templateUsePowerline(t: PromptTemplate): boolean {
   return t.requiresNerdFont
+}
+
+// ---------------------------------------------------------------------------
+// Live preview helpers
+// ---------------------------------------------------------------------------
+
+function wizardToConfig(wc: WizardConfig): NeshConfig {
+  return {
+    prompt_template: wc.template,
+    prompt_color_scheme: wc.colorScheme,
+    prompt_icon_mode: wc.iconMode,
+    prompt_separator_style: wc.separatorStyle as 'angled' | 'vertical' | 'slanted' | 'round',
+    prompt_head_style: wc.headStyle as 'sharp' | 'blurred' | 'slanted' | 'round',
+    prompt_height: wc.height as 'one-line' | 'two-line',
+    prompt_spacing: wc.spacing as 'compact' | 'sparse',
+    prompt_icon_density: wc.iconDensity as 'few' | 'many',
+    prompt_flow: wc.flow as 'concise' | 'fluent',
+    prompt_time_format: wc.timeFormat as 'none' | '12h' | '24h',
+    prompt_transient: wc.transient,
+    prompt_segments: wc.segments,
+  }
+}
+
+function showPreview(config: WizardConfig): void {
+  const cwd = process.cwd()
+  const homedir = os.homedir()
+  const tmpl = TEMPLATES.find(t => t.name === config.template) ?? TEMPLATES[0]
+  const preview = buildPromptFromTemplate(tmpl, cwd, homedir, wizardToConfig(config))
+  process.stdout.write(`\n  ${pc.dim('Preview:')} ${preview}\n`)
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +375,7 @@ async function stepConfirm(
   const cwd = process.cwd()
   const homedir = os.homedir()
   const tmpl = TEMPLATES.find((t) => t.name === config.template) ?? TEMPLATES[0]
-  const preview = buildPromptFromTemplate(tmpl, cwd, homedir)
+  const preview = buildPromptFromTemplate(tmpl, cwd, homedir, wizardToConfig(config))
   process.stdout.write(`\n  ${pc.bold('Preview:')}\n`)
   process.stdout.write(`  ${preview}\n\n`)
 
@@ -406,6 +436,10 @@ export async function executeWizard(
       return {}
     }
     config = result
+    // Show live preview after each choice (skip font detection step and confirm step)
+    if (step !== stepFontTest && step !== stepConfirm) {
+      showPreview(config)
+    }
   }
 
   // Save all settings atomically
