@@ -4,10 +4,9 @@ import * as os from 'node:os'
 import process from 'node:process'
 import { buildPrompt } from './prompt.js'
 import { classifyInput } from './classify.js'
-import { executeCd, executeExport, executeTheme, executeAliases } from './builtins.js'
-import { executeModelSwitcher } from './model-switcher.js'
-import { executeKeyManager } from './key-manager.js'
+import { executeCd, executeExport } from './builtins.js'
 import { executeSettings } from './settings.js'
+import type { SettingsContext } from './settings.js'
 import { executeCommand } from './passthrough.js'
 import { executeAI, buildFixPrompt, parseFixResponse } from './ai.js'
 import { createRenderer, renderCostFooter } from './renderer.js'
@@ -27,7 +26,6 @@ import { createCompletionEngine } from './completions/engine.js'
 import { setupAutoSuggestions } from './suggestions/index.js'
 import { renderHighlighted } from './highlighting/renderer.js'
 import { refreshCommandCache, isKnownCommand, addKnownCommands } from './highlighting/commands.js'
-import { executePlugin } from './plugin-manager.js'
 import { isFirstRun, runOnboarding } from './onboarding.js'
 import { expandProfile } from './plugins/profiles.js'
 import { CONFIG_PATH } from './config.js'
@@ -196,6 +194,7 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
       }
     })()
     if (!hasPluginConfig) {
+      const { executePlugin } = await import('./plugin-manager.js')
       await executePlugin('profile', {
         pluginRegistry,
         rl,
@@ -255,7 +254,13 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
       // Fire-and-forget: prePrompt hook (per D-26 -- no await)
       dispatchHook('prePrompt', hookBus.prePrompt, { cwd: process.cwd() })
       const line = await rl.question(prompt)
-      const expandedLine = expandAlias(line, pluginRegistry, prefix)
+      // User aliases (from config) take priority over plugin aliases
+      const userAliasMap = config.user_aliases ?? {}
+      const firstWord = line.trim().split(/\s+/)[0] ?? ''
+      const userExpansion = userAliasMap[firstWord]
+      const expandedLine = userExpansion
+        ? line.trim().replace(firstWord, userExpansion)
+        : expandAlias(line, pluginRegistry, prefix)
       const action = classifyInput(expandedLine, prefix)
 
       switch (action.type) {
@@ -292,35 +297,24 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
             case 'clear':
               process.stdout.write('\x1Bc')
               break
-            case 'theme': {
-              const themeResult = await executeTheme(rl)
-              if (themeResult.templateName) {
-                currentTemplate = themeResult.templateName
-              }
-              break
-            }
-            case 'model': {
-              const selectedModel = await executeModelSwitcher(rl, state.currentModel)
-              if (selectedModel) {
-                state = { ...state, currentModel: selectedModel }
-                saveConfig({ ...loadConfig(), model: selectedModel })
-              }
-              break
-            }
-            case 'keys': {
-              await executeKeyManager(rl)
-              break
-            }
             case 'settings': {
-              const settingsResult = await executeSettings(rl, state.currentModel)
+              const settingsCtx: SettingsContext = {
+                currentModel: state.currentModel,
+                permissionMode: state.permissionMode,
+                pluginRegistry,
+                onHotReload: (r) => {
+                  pluginRegistry = r.registry
+                  hookBus = r.hookBus
+                  enabledPlugins = r.enabled
+                  addKnownCommands(pluginRegistry.getAll().keys())
+                },
+              }
+              const settingsResult = await executeSettings(rl, settingsCtx)
               if (settingsResult.templateName) {
                 currentTemplate = settingsResult.templateName
-                saveConfig({ ...loadConfig(), prompt_template: settingsResult.templateName })
-                process.stdout.write(`Theme set to: ${settingsResult.templateName}\n`)
               }
               if (settingsResult.model) {
                 state = { ...state, currentModel: settingsResult.model }
-                saveConfig({ ...loadConfig(), model: settingsResult.model })
               }
               if (settingsResult.prefix) {
                 prefix = settingsResult.prefix
@@ -328,23 +322,6 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
               if (settingsResult.permissions) {
                 state = { ...state, permissionMode: settingsResult.permissions }
               }
-              break
-            }
-            case 'aliases': {
-              executeAliases(pluginRegistry)
-              break
-            }
-            case 'plugin': {
-              await executePlugin(action.args, {
-                pluginRegistry,
-                rl,
-                onHotReload: (r) => {
-                  pluginRegistry = r.registry
-                  hookBus = r.hookBus
-                  enabledPlugins = r.enabled
-                  addKnownCommands(pluginRegistry.getAll().keys())
-                },
-              })
               break
             }
             case 'exit':
