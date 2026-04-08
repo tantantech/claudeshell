@@ -10,7 +10,6 @@ import type { SettingsContext } from './settings.js'
 import { executeCommand } from './passthrough.js'
 import { executeAI, buildFixPrompt, parseFixResponse } from './ai.js'
 import { createRenderer, renderCostFooter } from './renderer.js'
-import { createSessionId } from './session.js'
 import { EMPTY_ACCUMULATOR, accumulate } from './cost.js'
 import { runChatMode } from './chat.js'
 import { loadHistory, saveHistory, shouldSaveToHistory, HISTORY_PATH } from './history.js'
@@ -129,7 +128,7 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
     lastError: undefined,
     aiStreaming: false,
     interactiveRunning: false,
-    sessionId: createSessionId(),
+    sessionId: undefined,
     chatMode: false,
     currentModel: config.model,
     sessionCost: EMPTY_ACCUMULATOR,
@@ -369,15 +368,17 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
             } as const
             state = { ...state, lastError, lastSuggestedFix: undefined }
 
-            // Auto-suggest fix via AI (skip if no API key)
+            // Auto-suggest fix via AI (skip if no API key or command-not-found)
             try {
+              if (lastError.exitCode === 127) break // command not found — no AI needed
               const fixConfig = loadConfig()
               const hasApiKey = Boolean(resolveApiKey(fixConfig))
               if (!hasApiKey) break
               process.stderr.write(pc.dim('Analyzing error...\r'))
               const fixAbortController = new AbortController()
+              const fixTimeout = setTimeout(() => fixAbortController.abort(), 5000)
               let fixResponseText = ''
-              await executeAI(buildFixPrompt(lastError), {
+              const fixResult = await executeAI(buildFixPrompt(lastError), {
                 cwd: process.cwd(),
                 lastError: undefined,
                 abortController: fixAbortController,
@@ -392,6 +393,10 @@ export async function runShell(options?: { readonly safeMode?: boolean; readonly
                 permissionMode: 'auto',
                 projectContext: state.projectContext,
               })
+              clearTimeout(fixTimeout)
+              if (fixResult.sessionId) {
+                state = { ...state, sessionId: fixResult.sessionId }
+              }
               const fixCmd = parseFixResponse(fixResponseText)
               if (fixCmd) {
                 process.stderr.write(`Suggested fix: ${fixCmd}. Type '${prefix} fix' to run it.\n`)
