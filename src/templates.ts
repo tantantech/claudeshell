@@ -78,6 +78,11 @@ function spacingPrefix(rc: RenderConfig): string {
   return rc.spacing === 'sparse' ? '\n' : ''
 }
 
+// Strip ANSI escape sequences to calculate visible string width
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '')
+}
+
 // Height-aware prompt assembly
 function applyHeight(mainLine: string, promptChar: string, rc: RenderConfig): string {
   const prefix = spacingPrefix(rc)
@@ -315,6 +320,72 @@ const builders: Record<string, PromptBuilder> = {
     return applyHeight(mainLine, `${fg(s.accent)}${s.promptChar}${RESET}`, rc)
   },
 
+  p10k(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
+    const rc = loadRenderConfig(overrideConfig)
+    const s = rc.scheme
+    const display = abbreviatePath(cwd, homedir)
+    const branch = getGitBranch()
+    const gitStatus = getGitStatus()
+
+    // --- Left side segments ---
+    const leftParts: string[] = []
+
+    // Shell icon/name
+    const shellLabel = icon('folder', rc, true) ? '' : 'nesh'
+    leftParts.push(`${fg(s.primary)}${BOLD}${shellLabel || ''}${RESET}`)
+
+    // Directory
+    const folderIcon = icon('folder', rc)
+    const dirLabel = flowLabel(display, `in ${display}`, rc)
+    leftParts.push(`${fg(s.accent)}${folderIcon}${folderIcon ? ' ' : ''}${dirLabel}${RESET}`)
+
+    // Git branch
+    if (branch) {
+      const branchIcon = icon('branch', rc, true)
+      const branchLabel = flowLabel(branch, `on ${branch}`, rc)
+      leftParts.push(`${fg(s.git)}${branchIcon}${branchIcon ? ' ' : ''}${branchLabel}${RESET}`)
+    }
+
+    const leftSep = ` ${fg(s.primary)}\u276F${RESET} `
+    const leftStr = leftParts.join(leftSep)
+
+    // --- Right side segments ---
+    const rightParts: string[] = []
+
+    // Git status indicator (clean/dirty)
+    if (branch) {
+      const isClean = !gitStatus || (gitStatus.dirty === 0 && gitStatus.staged === 0 && gitStatus.untracked === 0)
+      const checkIcon = icon('check', rc)
+      if (isClean) {
+        rightParts.push(`${fg(s.git)}${checkIcon || '\u2713'}${RESET}`)
+      } else {
+        const errorIcon = icon('error', rc)
+        rightParts.push(`${fg(s.error)}${errorIcon || '\u2717'}${RESET}`)
+      }
+    }
+
+    // Local label
+    rightParts.push(`${DIM}local${RESET}`)
+
+    // Time
+    const time = timeSegment(rc)
+    if (time) {
+      rightParts.push(`${fg(s.info)}${time}${RESET}`)
+    }
+
+    const rightSep = ` ${fg(s.primary)}\u276E${RESET} `
+    const rightStr = rightParts.join(rightSep)
+
+    // --- Combine with padding ---
+    const columns = process.stdout.columns || 80
+    const visibleLeft = stripAnsi(leftStr).length
+    const visibleRight = stripAnsi(rightStr).length
+    const padding = Math.max(1, columns - visibleLeft - visibleRight)
+    const mainLine = `${leftStr}${' '.repeat(padding)}${rightStr}`
+
+    return applyHeight(mainLine, `${fg(s.primary)}${s.promptChar}${RESET}`, rc)
+  },
+
   pure(cwd: string, homedir: string, overrideConfig?: NeshConfig): string {
     const rc = loadRenderConfig(overrideConfig)
     const s = rc.scheme
@@ -345,6 +416,7 @@ const builders: Record<string, PromptBuilder> = {
 }
 
 export const TEMPLATES: readonly PromptTemplate[] = [
+  { name: 'p10k', label: 'P10k', description: 'Two-sided prompt with left and right segments', requiresNerdFont: false },
   { name: 'minimal', label: 'Minimal', description: 'Clean and simple, no special characters', requiresNerdFont: false },
   { name: 'classic', label: 'Classic', description: 'Box-drawing characters with accents', requiresNerdFont: false },
   { name: 'powerline', label: 'Powerline', description: 'Segments with arrow separators (requires Nerd Font)', requiresNerdFont: true },
@@ -356,7 +428,7 @@ export const TEMPLATES: readonly PromptTemplate[] = [
   { name: 'pure', label: 'Pure', description: 'Ultra-minimal two-line inspired by sindresorhus/pure', requiresNerdFont: false },
 ]
 
-export const DEFAULT_TEMPLATE_NAME = 'minimal'
+export const DEFAULT_TEMPLATE_NAME = 'p10k'
 
 export function getTemplateByName(name: string): PromptTemplate | undefined {
   return TEMPLATES.find((t) => t.name === name)

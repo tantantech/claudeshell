@@ -20,13 +20,13 @@ import { getGitBranch } from '../src/prompt.js'
 const mockedGetGitBranch = vi.mocked(getGitBranch)
 
 describe('TEMPLATES', () => {
-  it('contains exactly 9 templates', () => {
-    expect(TEMPLATES).toHaveLength(9)
+  it('contains exactly 10 templates', () => {
+    expect(TEMPLATES).toHaveLength(10)
   })
 
   it('contains all expected template names', () => {
     const names = TEMPLATES.map((t) => t.name)
-    expect(names).toEqual(['minimal', 'classic', 'powerline', 'hacker', 'pastel', 'rainbow', 'lean', 'classic-p10k', 'pure'])
+    expect(names).toEqual(['p10k', 'minimal', 'classic', 'powerline', 'hacker', 'pastel', 'rainbow', 'lean', 'classic-p10k', 'pure'])
   })
 
   it('powerline, rainbow, and classic-p10k require Nerd Font', () => {
@@ -42,8 +42,8 @@ describe('TEMPLATES', () => {
 })
 
 describe('DEFAULT_TEMPLATE_NAME', () => {
-  it('is minimal', () => {
-    expect(DEFAULT_TEMPLATE_NAME).toBe('minimal')
+  it('is p10k', () => {
+    expect(DEFAULT_TEMPLATE_NAME).toBe('p10k')
   })
 })
 
