@@ -1,7 +1,7 @@
 import { getProviderForModel } from './providers/index.js'
 import type { InputAction, BuiltinName } from './types.js'
 
-const BUILTINS: ReadonlySet<string> = new Set(['cd', 'exit', 'quit', 'clear', 'export', 'theme', 'model', 'keys', 'settings', 'aliases', 'plugin'])
+const BUILTINS: ReadonlySet<string> = new Set(['cd', 'exit', 'quit', 'clear', 'export', 'settings'])
 
 const MODEL_FLAGS: Readonly<Record<string, string>> = {
   '--haiku': 'claude-haiku-4-5-20251001',
